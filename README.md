@@ -1,5 +1,5 @@
 # VHVR-Mod
-This fork's development branch adds a native Unity OpenXR companion for VHVR v0.10.3.
+This fork's development branch adds a native Unity OpenXR companion for VHVR v0.10.5.
 See [OpenXR architecture, build and validation status](OpenXR/README.md). Nikami and
 its launcher remain separate. The upstream SteamVR implementation is retained.
 

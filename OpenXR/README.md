@@ -1,7 +1,7 @@
 # VHVR OpenXR development branch
 
 This branch adds an optional native Unity OpenXR runtime companion to official
-VHVR v0.10.3. VHVR continues to own its rig, combat, building and UI. Its gameplay
+VHVR v0.10.5. VHVR continues to own its rig, combat, building and UI. Its gameplay
 DLL is unchanged. The companion replaces OpenVR runtime initialization and
 adapts OpenXR controller input to VHVR's existing managed action objects.
 
@@ -30,7 +30,7 @@ implemented by the OpenXR companion. Only Touch bindings have simulator checks.
 
 ## Build
 
-Use an owned Windows Valheim installation with BepInEx and official VHVR v0.10.3:
+Use an owned Windows Valheim installation with BepInEx and official VHVR v0.10.5:
 
 ```powershell
 ./OpenXR/scripts/Build-OpenXR.ps1 -ValheimDir 'D:\SteamLibrary\steamapps\common\Valheim'

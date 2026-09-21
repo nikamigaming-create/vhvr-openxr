@@ -36,7 +36,7 @@ $entries=foreach($relative in $files.Keys){
     Copy-Item -LiteralPath $files[$relative] -Destination $target -Force
     [pscustomobject]@{path=$relative;sha256=(Get-FileHash -LiteralPath $target).Hash}
 }
-@{adapterVersion='0.1.0';unityOpenXR='1.16.1';testedUpstream='v0.10.3';files=@($entries)} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $Destination 'openxr-manifest.json') -Encoding UTF8
+@{adapterVersion='0.1.0';unityOpenXR='1.16.1';testedUpstream='v0.10.5';files=@($entries)} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $Destination 'openxr-manifest.json') -Encoding UTF8
 $licenses=Join-Path $Destination 'openxr-licenses'
 New-Item -ItemType Directory -Path $licenses -Force | Out-Null
 foreach($name in @('LICENSE.md','Third Party Notices.md')) { if(Test-Path -LiteralPath (Join-Path $OpenXRPackage $name)){Copy-Item -LiteralPath (Join-Path $OpenXRPackage $name) -Destination $licenses -Force} }
