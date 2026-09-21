@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>Nikami.OpenXR</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="$(ValheimDir)/Valheim_Data/Managed/Unity*.dll" Private="false" />
+    <Reference Include="$(ValheimDir)/Valheim_Data/Managed/SteamVR*.dll" Private="false" />
+    <Reference Include="$(ValheimDir)/Valheim_Data/Managed/Valve.Newtonsoft.Json.dll" Private="false" />
+    <Reference Include="$(ValheimDir)/Valheim_Data/Managed/assembly_valheim.dll" Private="false" />
+    <Reference Include="$(ValheimDir)/BepInEx/core/BepInEx.dll" Private="false" />
+    <Reference Include="$(ValheimDir)/BepInEx/core/0Harmony.dll" Private="false" />
+    <ProjectReference Include="../../tools/OpenXR.Runtime/OpenXR.Runtime.csproj" />
+  </ItemGroup>
+</Project>
