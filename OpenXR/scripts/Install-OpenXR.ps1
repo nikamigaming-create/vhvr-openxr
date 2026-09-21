@@ -19,7 +19,13 @@ $changed=@($manifest.files | Where-Object {
     $target=Inside $game $_.path
     !(Test-Path -LiteralPath $target) -or (Get-FileHash -LiteralPath $target).Hash -ne $_.sha256
 })
-if(!$changed.Count){Write-Host 'Nikami native OpenXR is current.'; return}
+if(!$changed.Count){
+    # A manually updated payload may already match while its receipt is absent
+    # or still uses an older schema. Publish the manifest we just verified.
+    $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $game 'nikami-openxr.json') -Encoding UTF8
+    Write-Host 'Nikami native OpenXR is current.'
+    return
+}
 $backup=Join-Path (Split-Path $game -Parent) ('Nikami-Backups\OpenXR\'+(Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
 $existed=@{}
 foreach($file in $changed) {
