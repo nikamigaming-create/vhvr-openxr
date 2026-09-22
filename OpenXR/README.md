@@ -28,6 +28,14 @@ remain in use. This is a compatibility implementation, not removal of every
 SteamVR type from VHVR. Finger skeletons and SteamVR full-body trackers are not
 implemented by the OpenXR companion. Only Touch bindings have simulator checks.
 
+Single-pass instanced rendering is not ready for this game. Testing on Unity
+6000.0.75f1 starts a real two-slice OpenXR render pass, but the stock deferred
+renderer/effects fail and the right-eye world remains missing after a diagnostic
+switch to forward rendering. The inspected retail player, grass, rock and sky
+shaders contain no compiled stereo-instancing variants. Supporting this mode
+requires a compatible rendering/shader port, not a launcher flag. MultiPass
+remains the supported mode.
+
 ## Build
 
 Use an owned Windows Valheim installation with BepInEx and official VHVR v0.10.5:
@@ -59,6 +67,12 @@ these checks do not cover all weapons, full progression or multiplayer.
 Physical Quest Link latency, comfort, haptics and performance are unverified.
 The original SteamVR backend has not been rerun in this validation. Newer VHVR
 releases require their own adapter validation.
+
+The companion also preserves VHVR's detached underwater light blocker across
+the menu-to-world transition, with cleanup tied to its camera. This prevents a
+destroyed blocker from causing an exception on every physics update. The
+transition and both-eye rendering were checked in the simulator; this fix is
+not a claim of a measured headset frame-rate improvement.
 
 The next upstream integration step is to expose backend selection within
 VHVR's runtime boundary and replace the companion's private-method hooks with

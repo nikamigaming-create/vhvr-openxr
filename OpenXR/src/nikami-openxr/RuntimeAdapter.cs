@@ -59,6 +59,12 @@ internal static class RuntimeAdapter
             new HarmonyMethod(typeof(RuntimeAdapter), nameof(SelectMainCamera)));
         h.Patch(AccessTools.Method("ValheimVRMod.VRCore.VRPlayer:enableCameras"),
             new HarmonyMethod(typeof(RuntimeAdapter), nameof(RefreshWorldCamera)));
+        // VHVR keeps its VR camera across scene loads, but its underwater light
+        // blocker is an unparented scene object. Loading the world destroys that
+        // blocker and makes every subsequent physics tick throw. Give the object
+        // the camera's lifetime without parenting it to the moving head.
+        h.Patch(AccessTools.Method("ValheimVRMod.Scripts.UnderwaterEffectsUpdater:Init"),
+            postfix: new HarmonyMethod(typeof(RuntimeAdapter), nameof(PreserveUnderwaterResources)));
         // VHVR 0.10.3 can enter its body-tracker update with a provider but
         // without the optional waist debug renderer (common on runtimes that
         // expose only HMD + hands).  The null renderer aborts VRPlayer.Update
@@ -116,6 +122,16 @@ internal static class RuntimeAdapter
                      .Where(c => c && c.GetType().FullName == "ValheimVRMod.Scripts.FadingManager"))
             UnityEngine.Object.Destroy(fade);
         vr.enabled = false;
+    }
+    static void PreserveUnderwaterResources(Component __instance, GameObject ___underwaterLightBlocker)
+    {
+        if (!___underwaterLightBlocker) return;
+        UnityEngine.Object.DontDestroyOnLoad(___underwaterLightBlocker);
+        var owner = __instance.GetComponent<OpenXRSceneResources>() ??
+            __instance.gameObject.AddComponent<OpenXRSceneResources>();
+        owner.Own(___underwaterLightBlocker);
+        var renderer = ___underwaterLightBlocker.GetComponent<Renderer>();
+        if (renderer && renderer.sharedMaterial) owner.Own(renderer.sharedMaterial);
     }
     static void TrackedVelocity(Hand __instance, ref Vector3 __result)
     {
@@ -215,4 +231,18 @@ internal static class RuntimeAdapter
         }
     }
     static GameObject LiveObject(Component component) => component ? component.gameObject : null;
+}
+
+// Resources which must follow the persistent VR camera's lifetime but must not
+// inherit its head transform. Only objects created by VHVR's Init are registered.
+internal sealed class OpenXRSceneResources : MonoBehaviour
+{
+    readonly HashSet<UnityEngine.Object> owned = new();
+    internal void Own(UnityEngine.Object resource) => owned.Add(resource);
+    void OnDestroy()
+    {
+        foreach (var resource in owned)
+            if (resource) Destroy(resource);
+        owned.Clear();
+    }
 }

@@ -153,7 +153,7 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
         recoveryAttempted = false;
         var input = Loader?.GetLoadedSubsystem<XRInputSubsystem>();
         input?.TrySetTrackingOriginMode(TrackingOriginModeFlags.Floor);
-        Log.LogInfo("OpenXR session start: " + __result + "; both eyes each frame (MultiPass).");
+        Log.LogInfo("OpenXR session start: " + __result + "; render mode=" + OpenXRSettings.Instance.renderMode);
         return false;
     }
     void Update()
