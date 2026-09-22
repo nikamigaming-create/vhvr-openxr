@@ -57,7 +57,7 @@ companion DLL. Install Nikami and its launcher separately if desired.
 ## Status
 
 Development branch; not a release or a claim of complete gameplay compatibility.
-Meta XR Simulator checks on Valheim 1.0.12 have exercised world-camera ownership,
+Meta XR Simulator checks on Valheim 1.0.15 have exercised world-camera ownership,
 inventory, locomotion, Nikami item placement, a bronze-sword hit at the unchanged
 VHVR swing threshold, and controller-driven hammer crafting. Crafting checks
 include exact inventory and nearby Nikami storage costs, UI input priority, and
@@ -73,6 +73,23 @@ the menu-to-world transition, with cleanup tied to its camera. This prevents a
 destroyed blocker from causing an exception on every physics update. The
 transition and both-eye rendering were checked in the simulator; this fix is
 not a claim of a measured headset frame-rate improvement.
+
+Runtime member resolution now happens during adapter installation. Live hand,
+pelvis and shield state uses cached delegates and field accessors; scene changes
+still read the current Unity objects. Controller controls are cached until the
+input device list or configuration changes, and frequent action calls use typed
+hooks to avoid argument-array allocations. The GUI reuses its surviving stereo
+camera across scene transitions, and the velocity fallback runs after the
+upstream getter so its result is retained.
+
+In the same simulator scene at the original eye resolution, the two reflection
+fixes improved roughly 9 FPS to 18 FPS to 35 FPS. The update stage fell from
+32 ms to approximately 3.5 ms. The final full-resolution samples measured
+34–36 FPS with approximately 14–16 ms of GPU work. These are local simulator
+measurements, not a headset performance target or a single-pass result.
+The final gameplay run passed native sword collision, controller-driven
+crafting, movement, inventory and single/stack item placement. Broader gameplay
+and physical headset acceptance remain outstanding.
 
 The next upstream integration step is to expose backend selection within
 VHVR's runtime boundary and replace the companion's private-method hooks with

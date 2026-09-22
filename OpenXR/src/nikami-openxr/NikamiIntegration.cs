@@ -21,6 +21,8 @@ internal static class NikamiIntegration
     static Button placeButton;
     static Action<InventoryGui> beginPlacement;
     static Func<bool> placementActive;
+    static AccessTools.FieldRef<GameObject> quickHudRoot;
+    static AccessTools.FieldRef<InventoryGui, ItemDrop.ItemData> dragItem;
     static readonly bool[] held = new bool[2], down = new bool[2];
     static int inputFrame = -1;
     internal static void Install(Harmony h)
@@ -35,6 +37,8 @@ internal static class NikamiIntegration
         h.Patch(AccessTools.Method("nikami.EquipmentPanel:Update"), postfix: new HarmonyMethod(typeof(NikamiIntegration), nameof(InventoryUi)));
         beginPlacement = AccessTools.MethodDelegate<Action<InventoryGui>>(AccessTools.Method("nikami.ItemPlacement:Begin"));
         placementActive = AccessTools.MethodDelegate<Func<bool>>(AccessTools.PropertyGetter(AccessTools.TypeByName("nikami.ItemPlacement"), "Active"));
+        quickHudRoot = AccessTools.StaticFieldRefAccess<GameObject>(AccessTools.Field(AccessTools.TypeByName("nikami.QuickSlotHud"), "_root"));
+        dragItem = AccessTools.FieldRefAccess<InventoryGui, ItemDrop.ItemData>("m_dragItem");
         foreach (var name in new[] { "GetJoyRightStickX", "GetJoyRightStickY" })
             h.Patch(AccessTools.Method("ValheimVRMod.VRCore.UI.VRControls:" + name), new HarmonyMethod(typeof(NikamiIntegration), nameof(PlacementOwnsStick)));
     }
@@ -44,7 +48,7 @@ internal static class NikamiIntegration
         // extra labels are created. Find their existing font in the moved UI.
         if (!font) font = UnityEngine.Object.FindObjectsByType<TMP_Text>(FindObjectsInactive.Include, FindObjectsSortMode.None).FirstOrDefault(t => t.font && !t.name.StartsWith("Nikami"))?.font;
         if (!font) return;
-        var root = (GameObject)AccessTools.Field(AccessTools.TypeByName("nikami.QuickSlotHud"), "_root").GetValue(null);
+        var root = quickHudRoot();
         if (root) foreach (var label in root.GetComponentsInChildren<TMP_Text>(true)) if (!label.font) label.font = font;
     }
     static void InventoryUi(InventoryGui gui, InventoryGrid grid)
@@ -82,7 +86,7 @@ internal static class NikamiIntegration
             rt.anchoredPosition = panel.anchoredPosition + new Vector2(3, -panel.sizeDelta.y - 5);
             rt.sizeDelta = new Vector2(panel.sizeDelta.x - 6, 34);
         }
-        placeButton.interactable = AccessTools.Field(typeof(InventoryGui), "m_dragItem").GetValue(gui) != null;
+        placeButton.interactable = dragItem(gui) != null;
     }
     static void PlacementStarted()
     {
@@ -108,8 +112,8 @@ internal static class NikamiIntegration
             yield return code;
         }
     }
-    static float Trigger() => InputAdapter.Device(2)?.TryGetChildControl<AxisControl>("trigger")?.ReadValue() ?? 0;
-    static bool Secondary() => InputAdapter.Device(2)?.TryGetChildControl<ButtonControl>("secondaryButton")?.isPressed ?? false;
+    static float Trigger() => InputAdapter.Control<AxisControl>(InputAdapter.Device(2), "trigger")?.ReadValue() ?? 0;
+    static bool Secondary() => InputAdapter.Control<ButtonControl>(InputAdapter.Device(2), "secondaryButton")?.isPressed ?? false;
     static bool Click(int button)
     {
         // The upstream laser action set deactivates when the inventory closes.
@@ -127,7 +131,7 @@ internal static class NikamiIntegration
     static Vector2 Scroll()
     {
         var d = InputAdapter.Device(2);
-        var axis = (d?.TryGetChildControl<Vector2Control>("thumbstick") ?? d?.TryGetChildControl<Vector2Control>("primary2DAxis"))?.ReadValue() ?? Vector2.zero;
+        var axis = (InputAdapter.Control<Vector2Control>(d, "thumbstick") ?? InputAdapter.Control<Vector2Control>(d, "primary2DAxis"))?.ReadValue() ?? Vector2.zero;
         if (Time.unscaledTime < nextRotation || Mathf.Abs(axis.x) < .6f) return Vector2.zero;
         nextRotation = Time.unscaledTime + .2f;
         return new Vector2(0, Mathf.Sign(axis.x));

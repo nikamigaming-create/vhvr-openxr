@@ -57,11 +57,40 @@ internal static class InputAdapter
     static readonly Dictionary<(ulong, ulong), Sample> Samples = new();
     static readonly Dictionary<ulong, PoseSample> PoseSamples = new();
     static readonly HashSet<string> Warned = new();
+    static readonly XRDevice[] Devices = new XRDevice[4];
+    static readonly Dictionary<XRDevice, Dictionary<string, InputControl>> Controls = new();
+    static bool devicesResolved;
     static ulong nextHandle = 100;
     internal static void Install(Harmony harmony)
     {
+        InputSystem.onDeviceChange += DeviceChanged;
         foreach (var method in typeof(CVRInput).GetMethods(BindingFlags.Public | BindingFlags.Instance))
-            if (method.ReturnType == typeof(EVRInputError)) harmony.Patch(method, new HarmonyMethod(typeof(InputAdapter), nameof(Dispatch)));
+        {
+            if (method.ReturnType != typeof(EVRInputError)) continue;
+            string prefix = method.Name switch {
+                "GetDigitalActionData" => nameof(DigitalData),
+                "GetAnalogActionData" => nameof(AnalogData),
+                "GetPoseActionDataForNextFrame" => nameof(NextPoseData),
+                "GetPoseActionDataRelativeToNow" => nameof(RelativePoseData),
+                "GetOriginTrackedDeviceInfo" => nameof(OriginData),
+                "UpdateActionState" => nameof(ActionState),
+                _ => nameof(Dispatch)
+            };
+            harmony.Patch(method, new HarmonyMethod(typeof(InputAdapter), prefix));
+        }
+    }
+    internal static void Shutdown()
+    {
+        InputSystem.onDeviceChange -= DeviceChanged;
+        DeviceChanged(null, default);
+    }
+    static void DeviceChanged(XRDevice device, InputDeviceChange change)
+    {
+        devicesResolved = false;
+        Array.Clear(Devices, 0, Devices.Length);
+        Controls.Clear();
+        foreach (var sample in Samples.Values) sample.Frame = -1;
+        PoseSamples.Clear();
     }
     internal static void LoadBindings()
     {
@@ -135,9 +164,19 @@ internal static class InputAdapter
     }
     internal static XRDevice Device(int hand)
     {
-        foreach (var d in InputSystem.devices)
-            if (hand == 3 ? d is XRHMD : d.usages.Contains(hand == 1 ? UnityEngine.InputSystem.CommonUsages.LeftHand : UnityEngine.InputSystem.CommonUsages.RightHand)) return d;
-        return null;
+        if (hand < 1 || hand > 3) return null;
+        if (!devicesResolved)
+        {
+            foreach (var d in InputSystem.devices)
+            {
+                if (!d.added || !d.enabled) continue;
+                if (Devices[3] == null && d is XRHMD) Devices[3] = d;
+                if (Devices[1] == null && d.usages.Contains(UnityEngine.InputSystem.CommonUsages.LeftHand)) Devices[1] = d;
+                if (Devices[2] == null && d.usages.Contains(UnityEngine.InputSystem.CommonUsages.RightHand)) Devices[2] = d;
+            }
+            devicesResolved = true;
+        }
+        return Devices[hand];
     }
     internal static bool TryGetVelocity(int hand, out Vector3 velocity)
     {
@@ -154,7 +193,13 @@ internal static class InputAdapter
         velocity = sample.Velocity;
         return true;
     }
-    static T Control<T>(XRDevice d, string name) where T : InputControl => d?.TryGetChildControl<T>(name);
+    internal static T Control<T>(XRDevice d, string name) where T : InputControl
+    {
+        if (d == null) return null;
+        if (!Controls.TryGetValue(d, out var controls)) Controls[d] = controls = new(StringComparer.OrdinalIgnoreCase);
+        if (!controls.TryGetValue(name, out var control)) controls[name] = control = d.TryGetChildControl<InputControl>(name);
+        return control as T;
+    }
     static Vector2 ReadAxis(Binding b)
     {
         var d = Device(b.Hand);
@@ -309,19 +354,28 @@ internal static class InputAdapter
                 mDeviceToAbsoluteTracking = matrix }
         };
     }
+    // Typed hot-path prefixes avoid Harmony's object[] and boxing for every action.
+    static bool DigitalData(ulong __0, ref InputDigitalActionData_t __1, ulong __3, ref EVRInputError __result)
+    { __1 = GetSample(__0, __3).Digital; __result = EVRInputError.None; return false; }
+    static bool AnalogData(ulong __0, ref InputAnalogActionData_t __1, ulong __3, ref EVRInputError __result)
+    { __1 = GetSample(__0, __3).Analog; __result = EVRInputError.None; return false; }
+    static bool NextPoseData(ulong __0, ref InputPoseActionData_t __2, ulong __4, ref EVRInputError __result)
+    { __2 = Pose(__0, __4); __result = EVRInputError.None; return false; }
+    static bool RelativePoseData(ulong __0, ref InputPoseActionData_t __3, ulong __5, ref EVRInputError __result)
+    { __3 = Pose(__0, __5); __result = EVRInputError.None; return false; }
+    static bool OriginData(ulong __0, ref InputOriginInfo_t __1, ref EVRInputError __result)
+    {
+        __1 = new InputOriginInfo_t { devicePath = __0, trackedDeviceIndex = __0 == 1 ? 1u : __0 == 2 ? 2u : __0 == 3 ? 0u : uint.MaxValue };
+        __result = EVRInputError.None; return false;
+    }
+    static bool ActionState(VRActiveActionSet_t[] __0, ref EVRInputError __result)
+    { UpdateActionSets(__0); __result = EVRInputError.None; return false; }
     static bool Dispatch(MethodBase __originalMethod, object[] __args, ref EVRInputError __result)
     {
         __result = EVRInputError.None;
         switch (__originalMethod.Name)
         {
             case "GetActionHandle": case "GetActionSetHandle": case "GetInputSourceHandle": __args[1] = Handle((string)__args[0]); break;
-            case "GetDigitalActionData": __args[1] = GetSample((ulong)__args[0], (ulong)__args[3]).Digital; break;
-            case "GetAnalogActionData": __args[1] = GetSample((ulong)__args[0], (ulong)__args[3]).Analog; break;
-            case "GetPoseActionDataForNextFrame": __args[2] = Pose((ulong)__args[0], (ulong)__args[4]); break;
-            case "GetPoseActionDataRelativeToNow": __args[3] = Pose((ulong)__args[0], (ulong)__args[5]); break;
-            case "GetOriginTrackedDeviceInfo":
-                var origin = (ulong)__args[0];
-                __args[1] = new InputOriginInfo_t { devicePath = origin, trackedDeviceIndex = origin == 1 ? 1u : origin == 2 ? 2u : origin == 3 ? 0u : uint.MaxValue }; break;
             case "TriggerHapticVibrationAction":
                 int hand = (int)(ulong)__args[5];
                 var haptic = Device(hand) as XRControllerWithRumble;
@@ -333,7 +387,6 @@ internal static class InputAdapter
                     if (nativeDevice.TryGetHapticCapabilities(out var caps) && caps.supportsImpulse) nativeDevice.SendHapticImpulse(0, amplitude, duration);
                 }
                 break;
-            case "UpdateActionState": UpdateActionSets((VRActiveActionSet_t[])__args[0]); break;
             case "SetActionManifestPath": break;
             case "GetSkeletalActionData": __args[1] = new InputSkeletalActionData_t(); break;
             case "GetBoneCount": __args[1] = 0u; break;

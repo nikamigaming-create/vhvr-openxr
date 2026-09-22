@@ -21,6 +21,45 @@ internal static class RuntimeAdapter
     static Camera worldCamera;
     static Func<Hand> leftHand, rightHand;
     static Func<Component> leftEstimator, rightEstimator;
+    static AccessTools.FieldRef<MeshRenderer> hipTrackerRenderer;
+    static TransformSlot trackedPelvis, pelvis;
+
+    // Resolve metadata once; keep reading the live Unity objects after scene loads.
+    sealed class TransformSlot
+    {
+        readonly Func<Transform> get;
+        readonly Action<Transform> set;
+        readonly string objectName;
+        internal TransformSlot(Type type, string name, string objectName)
+        {
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+            var field = type.GetField(name, flags);
+            var property = field == null ? type.GetProperty(name, flags) : null;
+            if (field != null)
+            {
+                var access = AccessTools.StaticFieldRefAccess<Transform>(field);
+                get = () => access();
+                set = value => access() = value;
+            }
+            else if (property != null)
+            {
+                get = AccessTools.MethodDelegate<Func<Transform>>(property.GetGetMethod(true));
+                if (property.CanWrite) set = AccessTools.MethodDelegate<Action<Transform>>(property.GetSetMethod(true));
+            }
+            this.objectName = objectName;
+        }
+        internal Transform Ensure()
+        {
+            if (get == null) return null;
+            var current = get();
+            if (current) return current;
+            if (set == null) return null;
+            var go = new GameObject(objectName) { hideFlags = HideFlags.HideAndDontSave };
+            current = go.transform;
+            set(current);
+            return current;
+        }
+    }
 
     internal static void Install(Harmony h)
     {
@@ -54,7 +93,8 @@ internal static class RuntimeAdapter
         // Runtime controller render-model download belongs to OpenVR. VHVR renders
         // the native character hands/held items; its transforms remain intact.
         Hook(h, typeof(Hand), "InitController", nameof(Skip));
-        Hook(h, typeof(Hand), "GetTrackedObjectVelocity", nameof(TrackedVelocity));
+        h.Patch(AccessTools.Method(typeof(Hand), "GetTrackedObjectVelocity"),
+            postfix: new HarmonyMethod(typeof(RuntimeAdapter), nameof(TrackedVelocity)));
         Hook(h, typeof(SteamVR_Input), "UpdateSkeletonActions", nameof(Skip));
         Hook(h, typeof(SteamVR_Action_Pose), "SetTrackingUniverseOrigin", nameof(SetOrigin));
         h.Patch(AccessTools.Method("ValheimVRMod.Utilities.CameraUtils:getCamera"),
@@ -67,6 +107,11 @@ internal static class RuntimeAdapter
         // the camera's lifetime without parenting it to the moving head.
         h.Patch(AccessTools.Method("ValheimVRMod.Scripts.UnderwaterEffectsUpdater:Init"),
             postfix: new HarmonyMethod(typeof(RuntimeAdapter), nameof(PreserveUnderwaterResources)));
+        // The GUI panel is recreated across scenes while its camera survives
+        // under the persistent head. Reuse that camera instead of adding a
+        // second identical stereo camera on every transition.
+        h.Patch(AccessTools.Method("ValheimVRMod.VRCore.UI.VRGUI:createUiPanelCamera"),
+            new HarmonyMethod(typeof(RuntimeAdapter), nameof(CreatePanelCameraOnce)));
         // VHVR 0.10.3 can enter its body-tracker update with a provider but
         // without the optional waist debug renderer (common on runtimes that
         // expose only HMD + hands).  The null renderer aborts VRPlayer.Update
@@ -76,7 +121,14 @@ internal static class RuntimeAdapter
         // rendered or used for tracking.
         var vrPlayerUpdate = AccessTools.Method("ValheimVRMod.VRCore.VRPlayer:Update");
         if (vrPlayerUpdate != null)
+        {
+            var playerType = vrPlayerUpdate.DeclaringType;
+            var hipField = AccessTools.Field(playerType, "hipTrackerRenderer");
+            if (hipField != null) hipTrackerRenderer = AccessTools.StaticFieldRefAccess<MeshRenderer>(hipField);
+            trackedPelvis = new TransformSlot(playerType, "trackedPelvis", "NikamiOpenXRTrackedPelvisSentinel");
+            pelvis = new TransformSlot(playerType, "pelvis", "NikamiOpenXRPelvisSentinel");
             h.Patch(vrPlayerUpdate, new HarmonyMethod(typeof(RuntimeAdapter), nameof(EnsureHipRenderer)));
+        }
         var shieldParry = AccessTools.Method("ValheimVRMod.Scripts.Block.ShieldBlock:CheckParryMotion");
         if (shieldParry != null)
         {
@@ -118,12 +170,12 @@ internal static class RuntimeAdapter
         __result = camera;
         return false;
     }
-    static void RefreshWorldCamera(object __instance)
+    static void RefreshWorldCamera(Camera ____vrCam)
     {
         var camera = GameCamera.instance ? GameCamera.instance.GetComponent<Camera>() : null;
         if (!camera || camera == worldCamera) return;
         worldCamera = camera;
-        var vr = AccessTools.Field(__instance.GetType(), "_vrCam").GetValue(__instance) as Camera;
+        var vr = ____vrCam;
         if (!vr) return;
         // Let VHVR's own initialization copy the new scene's effects and
         // visibility mask, then disable the ordinary game camera as usual.
@@ -142,9 +194,10 @@ internal static class RuntimeAdapter
         var renderer = ___underwaterLightBlocker.GetComponent<Renderer>();
         if (renderer && renderer.sharedMaterial) owner.Own(renderer.sharedMaterial);
     }
-    static void TrackedVelocity(Hand __instance, ref Vector3 __result)
+    static bool CreatePanelCameraOnce(Camera ____uiPanelCamera) => !____uiPanelCamera;
+    static void TrackedVelocity(Hand __instance, float timeOffset, ref Vector3 __result)
     {
-        if (__result.sqrMagnitude > .0001f || __instance == null)
+        if (__result.sqrMagnitude > .0001f || __instance == null || timeOffset != 0)
             return;
         int hand = __instance.handType == SteamVR_Input_Sources.LeftHand ? 1 :
                    __instance.handType == SteamVR_Input_Sources.RightHand ? 2 : 0;
@@ -167,46 +220,18 @@ internal static class RuntimeAdapter
     }
     static void EnsureHipRenderer()
     {
-        var vrType = AccessTools.TypeByName("ValheimVRMod.VRCore.VRPlayer");
-        if (vrType == null) return;
-        var field = vrType == null ? null : AccessTools.Field(vrType, "hipTrackerRenderer");
-        var existing = field?.GetValue(null) as MeshRenderer;
-        if (field != null && !existing)
+        var existing = hipTrackerRenderer != null ? hipTrackerRenderer() : null;
+        if (hipTrackerRenderer != null && !existing)
         {
             var sentinel = new GameObject("NikamiOpenXRHipTrackerSentinel");
             sentinel.hideFlags = HideFlags.HideAndDontSave;
             var mesh = sentinel.AddComponent<MeshRenderer>();
             mesh.enabled = false;
-            field.SetValue(null, mesh);
+            hipTrackerRenderer() = mesh;
         }
-        EnsureTransform(vrType, "trackedPelvis", "NikamiOpenXRTrackedPelvisSentinel");
-        var pelvis = EnsureTransform(vrType, "pelvis", "NikamiOpenXRPelvisSentinel");
-        var tracked = GetTransform(vrType, "trackedPelvis");
-        if (pelvis && tracked && pelvis.parent != tracked) pelvis.SetParent(tracked, false);
-    }
-    static Transform EnsureTransform(Type vrType, string fieldName, string objectName)
-    {
-        var field = vrType.GetField(fieldName, BindingFlags.Instance | BindingFlags.Static |
-                                             BindingFlags.Public | BindingFlags.NonPublic);
-        var property = vrType.GetProperty(fieldName, BindingFlags.Instance | BindingFlags.Static |
-                                               BindingFlags.Public | BindingFlags.NonPublic);
-        if (field == null && property == null) return null;
-        var current = field != null ? field.GetValue(null) as Transform : property.GetValue(null) as Transform;
-        if (current) return current;
-        var go = new GameObject(objectName);
-        go.hideFlags = HideFlags.HideAndDontSave;
-        current = go.transform;
-        if (field != null) field.SetValue(null, current);
-        else if (property.CanWrite) property.SetValue(null, current);
-        return current;
-    }
-    static Transform GetTransform(Type vrType, string name)
-    {
-        var field = vrType.GetField(name, BindingFlags.Instance | BindingFlags.Static |
-                                           BindingFlags.Public | BindingFlags.NonPublic);
-        if (field != null) return field.GetValue(null) as Transform;
-        return vrType.GetProperty(name, BindingFlags.Instance | BindingFlags.Static |
-                                         BindingFlags.Public | BindingFlags.NonPublic)?.GetValue(null) as Transform;
+        var tracked = trackedPelvis.Ensure();
+        var currentPelvis = pelvis.Ensure();
+        if (currentPelvis && tracked && currentPelvis.parent != tracked) currentPelvis.SetParent(tracked, false);
     }
     static bool SkipIncompleteShieldParry()
     {

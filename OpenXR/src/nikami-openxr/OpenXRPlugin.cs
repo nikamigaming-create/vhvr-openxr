@@ -73,6 +73,7 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
             if (BepInEx.Bootstrap.Chainloader.PluginInfos.TryGetValue("org.bepinex.plugins.valheimvrmod", out var upstream) && upstream.Instance)
                 upstream.Instance.enabled = false;
             harmony.UnpatchSelf();
+            InputAdapter.Shutdown();
             Logger.LogError("OpenXR compatibility initialization failed; VR startup stopped. " + error);
             enabled = false;
             Application.runInBackground = previousRunInBackground;
@@ -278,6 +279,7 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
         Camera.onPreRender -= CountVRCameraFrame;
         if (observedDisplay != null) observedDisplay.displayFocusChanged -= OnDisplayFocusChanged;
         observedDisplay = null;
+        InputAdapter.Shutdown();
         Loader?.Stop();
         Loader?.Deinitialize();
         Application.runInBackground = previousRunInBackground;
