@@ -19,6 +19,8 @@ internal static class RuntimeAdapter
     static readonly SteamVR ManagedRuntime = (SteamVR)FormatterServices.GetUninitializedObject(typeof(SteamVR));
     static readonly CVRInput ManagedInput = (CVRInput)FormatterServices.GetUninitializedObject(typeof(CVRInput));
     static Camera worldCamera;
+    static Func<Hand> leftHand, rightHand;
+    static Func<Component> leftEstimator, rightEstimator;
 
     internal static void Install(Harmony h)
     {
@@ -77,7 +79,14 @@ internal static class RuntimeAdapter
             h.Patch(vrPlayerUpdate, new HarmonyMethod(typeof(RuntimeAdapter), nameof(EnsureHipRenderer)));
         var shieldParry = AccessTools.Method("ValheimVRMod.Scripts.Block.ShieldBlock:CheckParryMotion");
         if (shieldParry != null)
+        {
+            var playerType = AccessTools.TypeByName("ValheimVRMod.VRCore.VRPlayer");
+            leftHand = AccessTools.MethodDelegate<Func<Hand>>(AccessTools.PropertyGetter(playerType, "leftHand"));
+            rightHand = AccessTools.MethodDelegate<Func<Hand>>(AccessTools.PropertyGetter(playerType, "rightHand"));
+            leftEstimator = AccessTools.MethodDelegate<Func<Component>>(AccessTools.PropertyGetter(playerType, "leftHandPhysicsEstimator"));
+            rightEstimator = AccessTools.MethodDelegate<Func<Component>>(AccessTools.PropertyGetter(playerType, "rightHandPhysicsEstimator"));
             h.Patch(shieldParry, new HarmonyMethod(typeof(RuntimeAdapter), nameof(SkipIncompleteShieldParry)));
+        }
         h.Patch(AccessTools.Method("ValheimVRMod.Scripts.LocalWeaponWield:OnDestroy"), transpiler: new HarmonyMethod(typeof(RuntimeAdapter), nameof(SafeWeaponCleanup)));
     }
     static void Hook(Harmony h, Type type, string method, string prefix)
@@ -201,14 +210,9 @@ internal static class RuntimeAdapter
     }
     static bool SkipIncompleteShieldParry()
     {
-        var vrType = AccessTools.TypeByName("ValheimVRMod.VRCore.VRPlayer");
-        if (vrType == null) return false;
-        var left = AccessTools.Property(vrType, "leftHand")?.GetValue(null);
-        var right = AccessTools.Property(vrType, "rightHand")?.GetValue(null);
-        if (left == null || right == null) return false;
-        var leftEstimator = AccessTools.Property(vrType, "leftHandPhysicsEstimator")?.GetValue(null);
-        var rightEstimator = AccessTools.Property(vrType, "rightHandPhysicsEstimator")?.GetValue(null);
-        return leftEstimator != null && rightEstimator != null;
+        // Resolve upstream members once at installation, not during physics.
+        // Still call the live getters so scene changes and lazy initialization work.
+        return leftHand() && rightHand() && leftEstimator() && rightEstimator();
     }
     static bool StartPlayer(Valve.VR.InteractionSystem.Player __instance, ref IEnumerator __result)
     {
