@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -44,11 +45,12 @@ namespace ValheimVRMod.VRCore.UI {
 
         public static KeyboardMouseSettings keyboardMouseSettings;
 
-        public static void instantiate(Transform mList, Transform mParent, GameObject sPrefab, bool enableTransformButtons) {
+        // isInGame: whether this is the in-game menu rather than the main menu, which has no world to act in.
+        public static void instantiate(Transform mList, Transform mParent, GameObject sPrefab, bool enableTransformButtons, bool isInGame) {
             menuList = mList.transform.Find("MenuEntries").transform;
             menuParent = mParent;
             settingsPrefab = sPrefab;
-            createMenuEntry();
+            createMenuEntry(isInGame);
             generatePrefabs();
             ConfigSettings.enableTransformButtons = enableTransformButtons;
         }
@@ -61,7 +63,7 @@ namespace ValheimVRMod.VRCore.UI {
         /// <summary>
         /// Create an Entry in the Menu 
         /// </summary>
-        private static void createMenuEntry() {
+        private static void createMenuEntry(bool isInGame) {
             int addedMenuEntryCount = 0;
             for (int i = 0; i < menuList.childCount; i++) {
                 Transform menuEntry = menuList.GetChild(i);
@@ -78,8 +80,12 @@ namespace ValheimVRMod.VRCore.UI {
                         AddMenuEntry("Screenshot", menuEntry, Vector2.up * MENU_ENTRY_HEIGHT * addedMenuEntryCount, CaptureScreenshot);
                         addedMenuEntryCount++;
 
-                        AddMenuEntry("Toggle auto-pickup", menuEntry, Vector2.up * MENU_ENTRY_HEIGHT * addedMenuEntryCount, ToggleAutoPickup);
-                        addedMenuEntryCount++;
+                        // Auto-pickup only means something with a player in a world.
+                        if (isInGame)
+                        {
+                            AddMenuEntry("Toggle auto-pickup", menuEntry, Vector2.up * MENU_ENTRY_HEIGHT * addedMenuEntryCount, ToggleAutoPickup);
+                            addedMenuEntryCount++;
+                        }
                     }
 
                 }
@@ -794,16 +800,42 @@ namespace ValheimVRMod.VRCore.UI {
             ZInput.instance.AddButton(configValue.Key, ZInput.KeyCodeToPath((KeyCode)Enum.Parse(typeof(KeyCode), configValue.Value.GetSerializedValue())));
         }
 
+        // How long to wait after closing the in-game menu before capturing, so that the menu panel and the laser
+        // pointer are gone from the image. Real time, since the menu may have paused the game.
+        private const float SCREENSHOT_DELAY_AFTER_MENU = 0.3f;
+
         private static void CaptureScreenshot()
         {
+            // The button sits in a menu, which would otherwise be in the picture. The main menu can't be closed, so
+            // only the in-game menu is.
+            if (Menu.instance != null && Menu.IsVisible())
+            {
+                Menu.instance.Hide();
+            }
+            VRPlayer.vrPlayerInstance?.StartCoroutine(CaptureScreenshotAfterMenuCloses());
+        }
+
+        private static IEnumerator CaptureScreenshotAfterMenuCloses()
+        {
+            yield return new WaitForSecondsRealtime(SCREENSHOT_DELAY_AFTER_MENU);
+
             string dir = new Regex("[\\/]valheim_Data$", RegexOptions.IgnoreCase).Replace(Application.dataPath, "") + "/VHVRScreenshots";
             if (!Directory.Exists(dir))
             {
                 Directory.CreateDirectory(dir);
             }
-            string path = dir + "/vhvr_screenshot_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".png";
+            // Down to the millisecond, so that screenshots taken within the same second don't overwrite each other.
+            string fileName = "vhvr_screenshot_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss_fff") + ".png";
+            string path = dir + "/" + fileName;
             LogUtils.LogDebug("Saving screenshot to " + path);
             ScreenCapture.CaptureScreenshot(path);
+
+            // The capture happens at the end of this frame, so the confirmation is only shown after it, where it
+            // can't end up in the picture.
+            yield return null;
+            MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, "Screenshot saved: VHVRScreenshots/" + fileName);
+            VRPlayer.leftHand?.hapticAction.Execute(0, 0.1f, 100, 0.3f, Valve.VR.SteamVR_Input_Sources.LeftHand);
+            VRPlayer.rightHand?.hapticAction.Execute(0, 0.1f, 100, 0.3f, Valve.VR.SteamVR_Input_Sources.RightHand);
         }
 
         private static void ToggleAutoPickup()
