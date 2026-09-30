@@ -53,10 +53,12 @@ namespace ValheimVRMod.VRCore
         private static float RIDE_HEIGHT_ADJUST = -0.85f;
         private static float SIT_ATTACH_HEIGHT_ADJUST = -0.6f;
         private static float SIT_HEIGHT_ADJUST = -0.7f;
-        private static Vector3 THIRD_PERSON_0_OFFSET = new Vector3(0f, 1.0f, -0.6f);
-        private static Vector3 THIRD_PERSON_1_OFFSET = new Vector3(0f, 1.4f, -1.5f);
-        private static Vector3 THIRD_PERSON_2_OFFSET = new Vector3(0f, 1.9f, -2.6f);
-        private static Vector3 THIRD_PERSON_3_OFFSET = new Vector3(0f, 3.2f, -4.4f);
+        // Relative to the first person eye point. Each keeps the distance it has always had, but at 25 to 30 degrees
+        // above the eye instead of 35 to 60, so the view looks past the character rather than down onto it.
+        private static Vector3 THIRD_PERSON_0_OFFSET = new Vector3(0f, 0.6f, -1.0f);
+        private static Vector3 THIRD_PERSON_1_OFFSET = new Vector3(0f, 1.0f, -1.8f);
+        private static Vector3 THIRD_PERSON_2_OFFSET = new Vector3(0f, 1.4f, -2.9f);
+        private static Vector3 THIRD_PERSON_3_OFFSET = new Vector3(0f, 2.3f, -4.9f);
         private static Vector3 THIRD_PERSON_CONFIG_OFFSET = Vector3.zero;
         private const float NECK_OFFSET = 0.25f;
         // Below this raw eye height the HMD is assumed not to be tracking, so height caliberation is deferred.
@@ -82,6 +84,7 @@ namespace ValheimVRMod.VRCore
         private static MeshRenderer hipTrackerRenderer;
         public static Transform trackedPelvis { get; private set; }
         public static Transform pelvis { get; private set; }
+
         private Vector3 roomscaleLocomotive {
             get {
                 var hip = hipTrackerTransform;
@@ -137,6 +140,8 @@ namespace ValheimVRMod.VRCore
         private Camera _handsCam;
         private Camera _skyboxCam;
         private Camera _thirdPersonCamera;
+        // Set once _vrCam has rendered a frame to the headset, see enableThirdPersonCamera().
+        private bool _vrCamHasRenderedStereo;
 
         //Roomscale movement variables
         private Transform _vrCameraRig;
@@ -282,11 +287,27 @@ namespace ValheimVRMod.VRCore
         public static SteamVR_LaserPointer leftPointer { get { return _leftPointer; } }
         public static SteamVR_LaserPointer rightPointer { get { return _rightPointer; } }
 
+        // The pointers selected purely by the dominant hand setting, deliberately not by which hand is
+        // currently wielding (mainWeaponHand and the like are offhand wield sensitive): a tool that is aimed
+        // with a ray, e. g. the build hammer, is aimed with the dominant hand whichever hand holds it.
+        public static SteamVR_LaserPointer dominantPointer
+        {
+            get { return VHVRConfig.LeftHanded() ? leftPointer : rightPointer; }
+        }
+
+        public static SteamVR_LaserPointer nonDominantPointer
+        {
+            get { return VHVRConfig.LeftHanded() ? rightPointer : leftPointer; }
+        }
+
+        // Unlike mainWeaponHand, these follow the dominant hand setting only and not offhand wielding.
+        public static Hand dominantHand { get { return VHVRConfig.LeftHanded() ? leftHand : rightHand; } }
+        public static Hand nonDominantHand { get { return VHVRConfig.LeftHanded() ? rightHand : leftHand; } }
+        public static SteamVR_Input_Sources nonDominantHandInputSource { get { return VHVRConfig.LeftHanded() ? SteamVR_Input_Sources.RightHand : SteamVR_Input_Sources.LeftHand; } }
+
         public static Vector3 dominantHandRayDirection { get
             {
-                var pointer =
-                 VHVRConfig.LeftHanded() ? VRPlayer.leftPointer : VRPlayer.rightPointer;
-                return (pointer.rayDirection * Vector3.forward).normalized;
+                return (dominantPointer.rayDirection * Vector3.forward).normalized;
             }
         }
 
@@ -428,6 +449,10 @@ namespace ValheimVRMod.VRCore
 
         void Update()
         {
+            // Here rather than in FixedUpdate, which doesn't run while the game is paused (e.g. in the menu in single
+            // player, where the mirror mode is changed). The old flat screen camera would otherwise live on and keep
+            // drawing a frozen image over the newly chosen eye mirror until the game is unpaused.
+            UpdateThirdPersonCamera();
             if (!ensurePlayerInstance())
             {
                 return;
@@ -476,6 +501,7 @@ namespace ValheimVRMod.VRCore
 
         void OnDestroy()
         {
+            Camera.onPostRender -= OnCameraPostRender;
             if (_dodgingRoom != null)
             {
                 Destroy(_dodgingRoom.gameObject);
@@ -515,8 +541,6 @@ namespace ValheimVRMod.VRCore
                     roomscaleMovement = Vector3.zero;
                 }
             }
-
-            UpdateThirdPersonCamera();
         }
 
         public static void StartSit()
@@ -527,7 +551,7 @@ namespace ValheimVRMod.VRCore
 
         private void UpdateThirdPersonCamera()
         {
-            if (!VHVRConfig.UseThirdPersonCameraOnFlatscreen())
+            if (!VHVRConfig.UseSeparateFlatscreenCamera())
             {
                 if (_thirdPersonCamera != null)
                 {
@@ -543,16 +567,30 @@ namespace ValheimVRMod.VRCore
                 return;
             }
 
-            if (attachedToPlayer)
+            if (_thirdPersonCamera != null &&
+                (VHVRConfig.UseStabilizedCameraOnFlatscreen() !=
+                     (_thirdPersonCamera.GetComponent<StabilizedCameraUpdater>() != null) ||
+                 (!VHVRConfig.UseFlatscreenPostEffects() &&
+                     _thirdPersonCamera.GetComponent<PostProcessingBehaviour>() != null)))
             {
-                // The death that made enableThirdPersonCamera() wait for the VR camera to be attached
-                // to the player again is over.
-                PlayerOnDeathPatch.hasCharacterDied = false;
+                // Either the mode switched between the stabilized camera and a third person one, which differ in
+                // their updater and culling mask, or the post effects were just turned off. Rebuild the camera
+                // rather than patching it up, so this doesn't have to track everything creating it set up.
+                Destroy(_thirdPersonCamera.gameObject);
+                _thirdPersonCamera = null;
             }
 
             if (_thirdPersonCamera == null)
             {
                 enableThirdPersonCamera();
+            }
+
+            if (VHVRConfig.UseFlatscreenPostEffects())
+            {
+                // Retried every frame rather than done once when the camera is created: the VR camera's own post
+                // processing is set up when it is attached to the player, which can happen after this camera
+                // exists. The call returns immediately once the effects are in place.
+                maybeCopyPostProcessingToFlatscreenCamera(_thirdPersonCamera);
             }
         }
 
@@ -1001,6 +1039,10 @@ namespace ValheimVRMod.VRCore
             _instance.SetActive(true);
             vrCam.enabled = true;
             _vrCam = vrCam;
+            // A rebuilt VR camera has to render to the headset again before the flat screen camera may copy it.
+            _vrCamHasRenderedStereo = false;
+            Camera.onPostRender -= OnCameraPostRender;
+            Camera.onPostRender += OnCameraPostRender;
             _vrCameraRig = vrCam.transform.parent;
             gesturedLocomotionManager = new GesturedLocomotionManager();
 
@@ -1035,23 +1077,47 @@ namespace ValheimVRMod.VRCore
             _handsCam = handsCamera;
         }
 
+        private void OnCameraPostRender(Camera camera)
+        {
+            if (camera == null || camera != _vrCam || !camera.stereoEnabled)
+            {
+                return;
+            }
+            _vrCamHasRenderedStereo = true;
+            Camera.onPostRender -= OnCameraPostRender;
+        }
+
         private void enableThirdPersonCamera()
         {
-            Camera vrCam = CameraUtils.getCamera(CameraUtils.VR_CAMERA);
-            if (vrCam == null || vrCam.gameObject == null)
+            // Use the VR camera only once enableVrCamera() has set it up and XR has rendered it to the headset.
+            // Looking it up by name instead would find the SteamVR prefab's camera as soon as the prefab is
+            // instantiated, and Update() runs this before enableCameras(), so the flat screen camera could be copied
+            // from a half built VR camera.
+            Camera vrCam = _vrCam;
+            if (vrCam == null || !vrCam.enabled || !vrCam.stereoEnabled || !_vrCamHasRenderedStereo)
             {
                 return;
             }
 
-            if (PlayerOnDeathPatch.hasCharacterDied && !attachedToPlayer)
+            string sceneName = SceneManager.GetActiveScene().name;
+            if (sceneName != START_SCENE && !attachedToPlayer)
             {
-                // Do not enable follow camera until the VRCamera is attached to the player after character death,
-                // otherwise the projection matrix of the VRCamera might become wrong.
+                // Do not create the flat screen camera in the world until the VR camera is attached to the player,
+                // as a precaution against the projection matrix of the VR camera becoming wrong. This window opens both while spawning after death and at game start: the flat screen
+                // camera is a scene object, so loading the world destroys the one created in the main menu, and
+                // Update() would otherwise rebuild it right away while the player is still spawning. An existing
+                // camera is left alone when the VR camera detaches (e.g. in bed or in a cutscene), only creating
+                // one waits. The main menu still gets one, looking at the UI panel (see ThirdPersonCameraUpdater).
                 return;
             }
 
-            LogDebug("Enabling third person camera");
-            _thirdPersonCamera = new GameObject(CameraUtils.FOLLOW_CAMERA).AddComponent<Camera>();
+            LogDebug("Enabling third person camera (scene: " + sceneName + ")");
+            // Built on an inactive object so the camera is never an enabled stereo camera, which is what
+            // AddComponent<Camera>() and CopyFrom(vrCam) would otherwise leave it as until stereoTargetEye is set
+            // below. It is activated once fully set up.
+            var thirdPersonCameraObject = new GameObject(CameraUtils.FOLLOW_CAMERA);
+            thirdPersonCameraObject.SetActive(false);
+            _thirdPersonCamera = thirdPersonCameraObject.AddComponent<Camera>();
             _thirdPersonCamera.CopyFrom(vrCam);
             // CopyFrom also copies vrCam's projection matrix as an explicitly set one, i. e. the off-axis XR eye
             // projection, carrying the eye texture's vertical convention. Unlike the hands and world space UI
@@ -1060,17 +1126,38 @@ namespace ValheimVRMod.VRCore
             // it lets the camera derive its own projection from the field of view and aspect set further down,
             // both of which an explicitly set projection matrix would otherwise override.
             _thirdPersonCamera.ResetProjectionMatrix();
+            // The same goes for the other matrices CopyFrom can carry over from the XR camera.
+            _thirdPersonCamera.ResetWorldToCameraMatrix();
+            _thirdPersonCamera.ResetCullingMatrix();
+            _thirdPersonCamera.ResetStereoProjectionMatrices();
+            _thirdPersonCamera.ResetStereoViewMatrices();
+            _thirdPersonCamera.targetTexture = null;
             _thirdPersonCamera.depth = 4;
-            // Borrow the character trigger layer to render headgears which should be hidden for the VR camera.
-            _thirdPersonCamera.cullingMask |= (1 << LayerUtils.CHARARCTER_TRIGGER);
+            bool isStabilizedCamera = VHVRConfig.UseStabilizedCameraOnFlatscreen();
+            if (!isStabilizedCamera)
+            {
+                // Borrow the character trigger layer to render headgears which should be hidden for the VR camera.
+                // The stabilized camera sits between the eyes like the VR camera does, so it has to hide the same
+                // things the VR camera hides, or the player's own head and helmet fill the view.
+                _thirdPersonCamera.cullingMask |= (1 << LayerUtils.CHARARCTER_TRIGGER);
+            }
             _thirdPersonCamera.cullingMask |= (1 << LayerUtils.getUiPanelLayer());
             _thirdPersonCamera.cullingMask |= (1 << LayerUtils.getWorldspaceUiLayer());
             _thirdPersonCamera.transform.position = vrCam.transform.position;
             _thirdPersonCamera.stereoTargetEye = StereoTargetEyeMask.None;
-            _thirdPersonCamera.gameObject.AddComponent<ThirdPersonCameraUpdater>();
             _thirdPersonCamera.enabled = true;
-            _thirdPersonCamera.fieldOfView = 75;
+            if (isStabilizedCamera)
+            {
+                _thirdPersonCamera.gameObject.AddComponent<StabilizedCameraUpdater>();
+            }
+            else
+            {
+                _thirdPersonCamera.gameObject.AddComponent<ThirdPersonCameraUpdater>();
+            }
+            // The updaters keep applying this as well, so that changing the setting takes effect immediately.
+            _thirdPersonCamera.fieldOfView = VHVRConfig.FlatscreenFieldOfView();
             _thirdPersonCamera.ResetAspect();
+            thirdPersonCameraObject.SetActive(true);
         }
 
         // Search for the original skybox cam, if found, copy it, disable it,
@@ -1117,13 +1204,50 @@ namespace ValheimVRMod.VRCore
                 return;
             }
             float mouseScroll = Input.GetAxis("Mouse ScrollWheel");
-            if (mouseScroll > 0f)
+            if (mouseScroll == 0f)
             {
-                zoomCamera(true);
+                return;
             }
-            else if (mouseScroll < 0f)
+            if (VHVRConfig.UseVrControls())
             {
-                zoomCamera(false);
+                // With motion controls the mouse is free for whoever watches the flat screen, so the wheel zooms that
+                // view and leaves the VR one alone.
+                zoomFlatscreenCamera(mouseScroll > 0f);
+            }
+            else
+            {
+                zoomCamera(mouseScroll > 0f);
+            }
+        }
+
+        // Treats the stabilized camera as the closest step of the follow camera's zoom, so that scrolling in past the
+        // shortest follow distance moves the view into the player's eyes, and scrolling out of it comes back out.
+        private static void zoomFlatscreenCamera(bool zoomIn)
+        {
+            const float DISTANCE_STEP = 0.1f;
+            float minDistance = VHVRConfig.MinFollowCameraDistance();
+            if (VHVRConfig.UseFollowCameraOnFlatscreen())
+            {
+                float distance = VHVRConfig.FollowCameraDistance();
+                if (!zoomIn)
+                {
+                    VHVRConfig.SetFollowCameraDistance(distance + DISTANCE_STEP);
+                }
+                else if (distance > minDistance)
+                {
+                    // Stops at the shortest distance rather than going straight on into the stabilized camera, so
+                    // that a quick scroll in doesn't overshoot the whole follow range.
+                    VHVRConfig.SetFollowCameraDistance(Mathf.Max(distance - DISTANCE_STEP, minDistance));
+                }
+                else
+                {
+                    VHVRConfig.SetFollowOrStabilizedMirrorMode(stabilized: true);
+                }
+            }
+            else if (VHVRConfig.UseStabilizedCameraOnFlatscreen() && !zoomIn)
+            {
+                VHVRConfig.SetFollowCameraDistance(minDistance);
+                VHVRConfig.SetFollowOrStabilizedMirrorMode(stabilized: false);
             }
         }
 
@@ -1236,6 +1360,7 @@ namespace ValheimVRMod.VRCore
                 _instance.transform.localPosition += getHeadOffset(_headZoomLevel) // Player controlled offset (zeroed on tracking reset)
                             + Vector3.forward * NECK_OFFSET; // Move slightly forward to position on neck
                 setPlayerVisualsOffset(playerCharacter.transform, Vector3.zero);
+                pullThirdPersonViewInFrontOfObstruction(playerCharacter);
             }
             else
             {
@@ -1254,6 +1379,23 @@ namespace ValheimVRMod.VRCore
                 }
                 setPlayerVisualsOffset(playerCharacter.transform, offset);
             }
+        }
+
+        // Like vanilla's third person camera, moves the view towards the character when something comes between the
+        // two, instead of leaving the player looking at the back of a wall. The rig's position is rebuilt from the
+        // zoom offset every frame, so the shift doesn't accumulate and the view goes back out once the way is clear.
+        private void pullThirdPersonViewInFrontOfObstruction(Player playerCharacter)
+        {
+            if (_vrCam == null)
+            {
+                return;
+            }
+            // The point above the character where the first person view would be, taken from the character's own
+            // transform so that nothing the view does can move where the test starts.
+            Vector3 subject = playerCharacter.transform.TransformPoint(getDesiredLocalPosition(playerCharacter));
+            Vector3 viewPoint = _vrCam.transform.position;
+            Vector3 clampedViewPoint = CameraObstructionUtils.ClampToAvoidObstruction(subject, viewPoint);
+            _instance.transform.position += clampedViewPoint - viewPoint;
         }
 
         //Moves all the effects and the meshes that compose the player, doesn't move the Rigidbody
@@ -1379,7 +1521,11 @@ namespace ValheimVRMod.VRCore
                 Vector3.Angle(trackedPelvis.up, player.transform.up) < 30 &&
                 playerEyeHeight > referencePlayerHeight * 0.75f;
 
-            if (player.IsAttached() ||
+            // While attached (sitting, riding, steering) or swimming the hips are left to the vanilla animation, unless
+            // the lower body override makes the tracked pelvis drive them anyway.
+            bool useAnimatedPelvis = (player.IsAttached() || player.IsSwimming()) && !shouldOverrideLowerBodyWithIK();
+
+            if (useAnimatedPelvis ||
                 (!VHVRConfig.TrackFeet() && (player.IsSneaking() || player.IsSitting() || !isFreeStanding)))
             {
                 vrikRef.solver.spine.pelvisPositionWeight = 0;
@@ -1391,7 +1537,7 @@ namespace ValheimVRMod.VRCore
                 pelvis.localPosition = Vector3.zero;
             }
 
-            if (player.IsAttached())
+            if (useAnimatedPelvis)
             {
                 pelvis.rotation =
                     Quaternion.Lerp(player.transform.rotation, trackedPelvis.rotation, 0.25f);
@@ -1426,9 +1572,26 @@ namespace ValheimVRMod.VRCore
             }
         }
 
+        private bool shouldOverrideLowerBodyWithIK()
+        {
+            var player = Player.m_localPlayer;
+            return VHVRConfig.IKOverrideLowerBody() &&
+                VHVRConfig.TrackFeet() &&
+                attachedToPlayer &&
+                player != null &&
+                !player.InDodge() &&
+                !wasDodging;
+        }
+
         public bool shouldTrackFeet()
         {
-            if (!VHVRConfig.TrackFeet() || !attachedToPlayer || Player.m_localPlayer == null || Player.m_localPlayer.IsAttached())
+            if (shouldOverrideLowerBodyWithIK())
+            {
+                return true;
+            }
+
+            if (!VHVRConfig.TrackFeet() || !attachedToPlayer || Player.m_localPlayer == null ||
+                Player.m_localPlayer.IsAttached() || Player.m_localPlayer.IsSwimming())
             {
                 return false;
             }
@@ -1981,6 +2144,68 @@ namespace ValheimVRMod.VRCore
             }
             vrCamera.gameObject.AddComponent<UnderwaterEffectsUpdater>().Init(
                 vrCamera, postProcessingBehavior, postProcessingBehavior.profile);
+        }
+
+        // Gives the flat screen camera the same post processing the VR camera renders with, so that what the
+        // desktop window shows matches the headset: bloom, colour grading, vignette and the rest of what the
+        // profile carries.
+        //
+        // The profile is deliberately shared rather than cloned, because CameraEffects.ApplySettings() toggles
+        // bloom, motion blur, antialiasing and chromatic aberration in place on the profile the VR camera renders
+        // with whenever the graphics settings change, and a clone would stop receiving those. Nothing ever assigns
+        // a different profile, so sharing cannot go stale.
+        //
+        // The environment does not come into this: an EnvSetup carries no post processing at all, and the look of
+        // a biome or a weather is RenderSettings fog and ambient light, the directional light, the skybox and
+        // global shader uniforms, all of which are scene wide and reach every camera on their own.
+        //
+        // Four things that the VR camera gets are deliberately left off:
+        //  - CameraEffects, whose Awake takes over the static CameraEffects.instance. A second one would steal it
+        //    from the VR camera and the headset would stop receiving settings and environment updates.
+        //  - AmplifyOcclusionEffect, because PatchAmplifyOcclusionStereoMultiPass forces stereo multi pass on for
+        //    every camera, and this one renders monoscopically. It would be sent down the stereo path with four
+        //    history buffers and stereo matrices. This is the one environment driven effect the flat screen view
+        //    therefore misses: EnvMan pushes an EnvSetup's ambient occlusion tint and intensity onto this
+        //    component, not onto the profile, and only onto the one CameraEffects.instance holds.
+        //  - UnderwaterEffectsUpdater, which keeps a static Underwaterness and spawns a world sized light blocker,
+        //    so a second one would fight the first. Its overlay is parented to the VR camera on the worldspace UI
+        //    layer, which this camera already renders, so the underwater tint carries over anyway.
+        //  - DepthOfField, which CameraEffects is what drives every frame, so without one it throws from
+        //    FocalDistance01 on every render. It is also the effect that means least here, being focused on what
+        //    the player's own camera is looking at.
+        private void maybeCopyPostProcessingToFlatscreenCamera(Camera flatscreenCamera)
+        {
+            if (flatscreenCamera == null ||
+                flatscreenCamera.gameObject.GetComponent<PostProcessingBehaviour>() != null)
+            {
+                return;
+            }
+
+            Camera vrCam = CameraUtils.getCamera(CameraUtils.VR_CAMERA);
+            if (vrCam == null)
+            {
+                return;
+            }
+
+            // The VR camera's own post processing is set up when it is attached to the player, which may not have
+            // happened yet, so this is retried until it has.
+            var vrCamPostProcessing = vrCam.gameObject.GetComponent<PostProcessingBehaviour>();
+            if (vrCamPostProcessing == null || vrCamPostProcessing.profile == null)
+            {
+                return;
+            }
+
+            LogDebug("Copying post processing onto the flat screen camera");
+            var postProcessing = flatscreenCamera.gameObject.AddComponent<PostProcessingBehaviour>();
+            postProcessing.profile = vrCamPostProcessing.profile;
+            postProcessing.jitteredMatrixFunc = vrCamPostProcessing.jitteredMatrixFunc;
+
+            var vrCamSunshaft = vrCam.gameObject.GetComponent<SunShafts>();
+            if (vrCamSunshaft != null)
+            {
+                var sunshaft = flatscreenCamera.gameObject.AddComponent<SunShafts>();
+                CopyClassFields(vrCamSunshaft, ref sunshaft);
+            }
         }
 
         private void CopyClassFields<T>(T source, ref T dest)

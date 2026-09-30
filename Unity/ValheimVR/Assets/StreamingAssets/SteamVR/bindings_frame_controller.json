@@ -54,9 +54,8 @@
                },
                "mode" : "button",
                "parameters" : {
-                  "click_activate_threshold" : "0.05",
-                  "click_deactivate_threshold" : "0",
-                  "force_input" : "force"
+                  "click_activate_threshold" : "0.8",
+                  "click_deactivate_threshold" : "0.7"
                },
                "path" : "/user/hand/left/input/grip"
             },
@@ -68,7 +67,7 @@
                },
                "mode" : "button",
                "parameters" : {
-                  "click_activate_threshold" : "0.75",
+                  "click_activate_threshold" : "0.8",
                   "click_deactivate_threshold" : "0.7",
                   "force_input" : "value"
                },
@@ -92,62 +91,38 @@
                },
                "mode" : "button",
                "parameters" : {
-                  "click_activate_threshold" : "0.75",
+                  "click_activate_threshold" : "0.8",
                   "click_deactivate_threshold" : "0.7"
                },
                "path" : "/user/hand/right/input/trigger"
             },
             {
                "inputs" : {
-                  "center" : {
-                     "output" : "/actions/default/in/teleport"
-                  },
-                  "east" : {
-                     "output" : "/actions/default/in/snapturnright"
-                  },
                   "north" : {
                      "output" : "/actions/default/in/teleport"
-                  },
-                  "south" : {
-                     "output" : "/actions/default/in/teleport"
-                  },
-                  "west" : {
-                     "output" : "/actions/default/in/snapturnleft"
                   }
                },
                "mode" : "dpad",
                "parameters" : {
-                  "deadzone_pct" : "90",
-                  "overlap_pct" : "15",
-                  "sub_mode" : "click"
+                  "deadzone_pct" : "25",
+                  "overlap_pct" : "30",
+                  "sub_mode" : "touch"
                },
-               "path" : "/user/hand/left/input/trackpad"
+               "path" : "/user/hand/left/input/thumbstick"
             },
             {
                "inputs" : {
-                  "center" : {
-                     "output" : "/actions/default/in/teleport"
-                  },
-                  "east" : {
-                     "output" : "/actions/default/in/snapturnright"
-                  },
                   "north" : {
                      "output" : "/actions/default/in/teleport"
-                  },
-                  "south" : {
-                     "output" : "/actions/default/in/teleport"
-                  },
-                  "west" : {
-                     "output" : "/actions/default/in/snapturnleft"
                   }
                },
                "mode" : "dpad",
                "parameters" : {
-                  "deadzone_pct" : "90",
-                  "overlap_pct" : "15",
-                  "sub_mode" : "click"
+                  "deadzone_pct" : "25",
+                  "overlap_pct" : "30",
+                  "sub_mode" : "touch"
                },
-               "path" : "/user/hand/right/input/trackpad"
+               "path" : "/user/hand/right/input/thumbstick"
             },
             {
                "inputs" : {
@@ -157,9 +132,8 @@
                },
                "mode" : "button",
                "parameters" : {
-                  "click_activate_threshold" : "0.05",
-                  "click_deactivate_threshold" : "0",
-                  "force_input" : "force"
+                  "click_activate_threshold" : "0.8",
+                  "click_deactivate_threshold" : "0.7"
                },
                "path" : "/user/hand/right/input/grip"
             },
@@ -171,7 +145,7 @@
                },
                "mode" : "trigger",
                "parameters" : {},
-               "path" : "/user/hand/left/input/trigger"
+               "path" : "/user/hand/left/input/grip"
             },
             {
                "inputs" : {
@@ -181,7 +155,7 @@
                },
                "mode" : "trigger",
                "parameters" : {},
-               "path" : "/user/hand/right/input/trigger"
+               "path" : "/user/hand/right/input/grip"
             }
          ]
       },
@@ -190,79 +164,37 @@
             {
                "inputs" : [
                   [ "/user/hand/right/input/grip", "click" ],
-                  [ "/user/hand/right/input/trackpad", "click" ]
+                  [ "/user/hand/right/input/trigger", "click" ]
+               ],
+               "output" : "/actions/valheim/in/discarditem"
+            },
+            {
+               "inputs" : [
+                  [ "/user/hand/left/input/grip", "click" ],
+                  [ "/user/hand/left/input/trigger", "click" ]
+               ],
+               "output" : "/actions/valheim/in/discarditem"
+            },
+            {
+               "inputs" : [
+                  [ "/user/hand/left/input/grip", "click" ],
+                  [ "/user/hand/right/input/trigger", "click" ]
+               ],
+               "output" : "/actions/valheim/in/splitstack"
+            },
+            {
+               "inputs" : [
+                  [ "/user/hand/right/input/grip", "click" ],
+                  [ "/user/hand/left/input/trigger", "click" ]
+               ],
+               "output" : "/actions/valheim/in/splitstack"
+            },
+            {
+               "inputs" : [
+                  [ "/user/hand/right/input/grip", "click" ],
+                  [ "/user/hand/right/input/a", "click" ]
                ],
                "output" : "/actions/valheim/in/removepiece"
-            },
-            {
-               "inputs" : [
-                  [ "/user/hand/right/input/application_menu", "click" ],
-                  [ "/user/hand/right/input/grip", "click" ]
-               ],
-               "output" : "/actions/valheim/in/togglemenu"
-            },
-            {
-               "inputs" : [
-                  [ "/user/hand/left/input/grip", "click" ],
-                  [ "/user/hand/left/input/application_menu", "click" ]
-               ],
-               "output" : "/actions/valheim/in/togglemap"
-            },
-            {
-               "inputs" : [
-                  [ "/user/hand/left/input/grip", "single" ],
-                  [ "/user/hand/right/input/trackpad", "click" ]
-               ],
-               "output" : "/actions/valheim/in/dodge"
-            },
-            {
-               "inputs" : [
-                  [ "/user/hand/right/input/grip", "click" ],
-                  [ "/user/hand/right/input/trackpad", "south" ]
-               ],
-               "output" : "/actions/valheim/in/middleclick"
-            },
-            {
-               "inputs" : [
-                  [ "/user/hand/right/input/grip", "click" ],
-                  [ "/user/hand/right/input/trigger", "click" ]
-               ],
-               "output" : "/actions/valheim/in/addmappin"
-            },
-            {
-               "inputs" : [
-                  [ "/user/hand/left/input/grip", "click" ],
-                  [ "/user/hand/left/input/trigger", "click" ]
-               ],
-               "output" : "/actions/valheim/in/addmappin"
-            },
-            {
-               "inputs" : [
-                  [ "/user/hand/right/input/grip", "click" ],
-                  [ "/user/hand/right/input/trigger", "click" ]
-               ],
-               "output" : "/actions/valheim/in/discarditem"
-            },
-            {
-               "inputs" : [
-                  [ "/user/hand/left/input/grip", "click" ],
-                  [ "/user/hand/left/input/trigger", "click" ]
-               ],
-               "output" : "/actions/valheim/in/discarditem"
-            },
-            {
-               "inputs" : [
-                  [ "/user/hand/left/input/grip", "click" ],
-                  [ "/user/hand/right/input/trigger", "click" ]
-               ],
-               "output" : "/actions/valheim/in/splitstack"
-            },
-            {
-               "inputs" : [
-                  [ "/user/hand/right/input/grip", "click" ],
-                  [ "/user/hand/left/input/trigger", "click" ]
-               ],
-               "output" : "/actions/valheim/in/splitstack"
             }
          ],
          "haptics" : [
@@ -290,68 +222,7 @@
             {
                "inputs" : {
                   "click" : {
-                     "output" : "/actions/valheim/in/grab"
-                  }
-               },
-               "mode" : "button",
-               "parameters" : {
-                  "haptic_amplitude" : "0"
-               },
-               "path" : "/user/hand/left/input/grip"
-            },
-            {
-               "inputs" : {
-                  "click" : {
-                     "output" : "/actions/valheim/in/grab"
-                  }
-               },
-               "mode" : "button",
-               "parameters" : {
-                  "haptic_amplitude" : "0",
-                  "haptic_frequency" : "15"
-               },
-               "path" : "/user/hand/right/input/grip"
-            },
-            {
-               "inputs" : {
-                  "click" : {
-                     "output" : "/actions/valheim/in/use"
-                  }
-               },
-               "mode" : "button",
-               "parameters" : {},
-               "path" : "/user/hand/left/input/trigger"
-            },
-            {
-               "inputs" : {
-                  "click" : {
-                     "output" : "/actions/valheim/in/use"
-                  }
-               },
-               "mode" : "button",
-               "parameters" : {},
-               "path" : "/user/hand/right/input/trigger"
-            },
-            {
-               "inputs" : {
-                  "click" : {
-                     "output" : "/actions/valheim/in/jump"
-                  },
-                  "position" : {
-                     "output" : "/actions/valheim/in/pitchandyaw"
-                  },
-                  "touch" : {
-                     "output" : "/actions/valheim/in/stopgesturedlocomotion"
-                  }
-               },
-               "mode" : "trackpad",
-               "parameters" : {},
-               "path" : "/user/hand/right/input/trackpad"
-            },
-            {
-               "inputs" : {
-                  "click" : {
-                     "output" : "/actions/valheim/in/toggleinventory"
+                     "output" : "/actions/valheim/in/middleclick"
                   },
                   "position" : {
                      "output" : "/actions/valheim/in/walk"
@@ -360,59 +231,117 @@
                      "output" : "/actions/valheim/in/stopgesturedlocomotion"
                   }
                },
-               "mode" : "trackpad",
+               "mode" : "joystick",
                "parameters" : {},
-               "path" : "/user/hand/left/input/trackpad"
+               "path" : "/user/hand/left/input/thumbstick"
             },
             {
                "inputs" : {
                   "click" : {
-                     "output" : "/actions/valheim/in/quickactions"
+                     "output" : "/actions/valheim/in/middleclick"
+                  },
+                  "position" : {
+                     "output" : "/actions/valheim/in/pitchandyaw"
+                  },
+                  "touch" : {
+                     "output" : "/actions/valheim/in/stopgesturedlocomotion"
                   }
                },
-               "mode" : "button",
+               "mode" : "joystick",
                "parameters" : {},
-               "path" : "/user/hand/left/input/application_menu"
+               "path" : "/user/hand/right/input/thumbstick"
             },
             {
                "inputs" : {
                   "click" : {
-                     "output" : "/actions/valheim/in/quickswitch"
-                  }
-               },
-               "mode" : "button",
-               "parameters" : {},
-               "path" : "/user/hand/right/input/application_menu"
-            },
-            {
-               "inputs" : {
-                  "click" : {
-                     "output" : "/actions/valheim/in/rightclick"
-                  }
-               },
-               "mode" : "button",
-               "parameters" : {},
-               "path" : "/user/hand/right/input/application_menu"
-            },
-            {
-               "inputs" : {
-                  "click" : {
-                     "output" : "/actions/valheim/in/rightclick"
-                  }
-               },
-               "mode" : "button",
-               "parameters" : {},
-               "path" : "/user/hand/left/input/application_menu"
-            },
-            {
-               "inputs" : {
-                  "click" : {
+                     "output" : "/actions/valheim/in/jump"
+                  },
+                  "touch" : {
                      "output" : "/actions/valheim/in/stopgesturedlocomotion"
                   }
                },
                "mode" : "button",
                "parameters" : {},
+               "path" : "/user/hand/right/input/a"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/valheim/in/scrollup"
+                  },
+                  "touch" : {
+                     "output" : "/actions/valheim/in/stopgesturedlocomotion"
+                  }
+               },
+               "mode" : "button",
+               "parameters" : {},
+               "path" : "/user/hand/left/input/dpad_up"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/valheim/in/scrolldown"
+                  },
+                  "touch" : {
+                     "output" : "/actions/valheim/in/stopgesturedlocomotion"
+                  }
+               },
+               "mode" : "button",
+               "parameters" : {},
+               "path" : "/user/hand/left/input/dpad_down"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/valheim/in/grab"
+                  }
+               },
+               "mode" : "trigger",
+               "parameters" : {},
                "path" : "/user/hand/left/input/grip"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/valheim/in/quickswitch"
+                  },
+                  "touch" : {
+                     "output" : "/actions/valheim/in/stopgesturedlocomotion"
+                  }
+               },
+               "mode" : "button",
+               "parameters" : {},
+               "path" : "/user/hand/right/input/b"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/valheim/in/use"
+                  }
+               },
+               "mode" : "trigger",
+               "parameters" : {},
+               "path" : "/user/hand/left/input/trigger"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/valheim/in/use"
+                  }
+               },
+               "mode" : "trigger",
+               "parameters" : {},
+               "path" : "/user/hand/right/input/trigger"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/valheim/in/grab"
+                  }
+               },
+               "mode" : "trigger",
+               "parameters" : {},
+               "path" : "/user/hand/right/input/grip"
             },
             {
                "inputs" : {
@@ -432,7 +361,7 @@
                },
                "mode" : "button",
                "parameters" : {},
-               "path" : "/user/hand/right/input/grip"
+               "path" : "/user/hand/left/input/grip"
             },
             {
                "inputs" : {
@@ -443,6 +372,16 @@
                "mode" : "button",
                "parameters" : {},
                "path" : "/user/hand/right/input/trigger"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/valheim/in/stopgesturedlocomotion"
+                  }
+               },
+               "mode" : "button",
+               "parameters" : {},
+               "path" : "/user/hand/right/input/grip"
             },
             {
                "inputs" : {
@@ -457,9 +396,9 @@
                "parameters" : {
                   "deadzone_pct" : "25",
                   "overlap_pct" : "0",
-                  "sub_mode" : "click"
+                  "sub_mode" : "touch"
                },
-               "path" : "/user/hand/right/input/trackpad"
+               "path" : "/user/hand/right/input/thumbstick"
             },
             {
                "inputs" : {
@@ -467,11 +406,8 @@
                      "output" : "/actions/valheim/in/leftclick"
                   }
                },
-               "mode" : "button",
-               "parameters" : {
-                  "haptic_amplitude" : "0",
-                  "haptic_frequency" : "15"
-               },
+               "mode" : "trigger",
+               "parameters" : {},
                "path" : "/user/hand/right/input/trigger"
             },
             {
@@ -486,29 +422,140 @@
             },
             {
                "inputs" : {
-                  "north" : {
-                     "output" : "/actions/valheim/in/scrollup"
+                  "click" : {
+                     "output" : "/actions/valheim/in/togglemap"
                   },
-                  "south" : {
-                     "output" : "/actions/valheim/in/scrolldown"
+                  "touch" : {
+                     "output" : "/actions/valheim/in/stopgesturedlocomotion"
                   }
                },
-               "mode" : "dpad",
-               "parameters" : {
-                  "deadzone_pct" : "50",
-                  "overlap_pct" : "0",
-                  "sub_mode" : "touch"
+               "mode" : "button",
+               "parameters" : {},
+               "path" : "/user/hand/left/input/view"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/valheim/in/togglemenu"
+                  },
+                  "touch" : {
+                     "output" : "/actions/valheim/in/stopgesturedlocomotion"
+                  }
                },
-               "path" : "/user/hand/left/input/trackpad"
+               "mode" : "button",
+               "parameters" : {},
+               "path" : "/user/hand/right/input/menu"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/valheim/in/dodge"
+                  },
+                  "touch" : {
+                     "output" : "/actions/valheim/in/stopgesturedlocomotion"
+                  }
+               },
+               "mode" : "button",
+               "parameters" : {},
+               "path" : "/user/hand/right/input/x"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/valheim/in/holdrun"
+                  },
+                  "touch" : {
+                     "output" : "/actions/valheim/in/stopgesturedlocomotion"
+                  }
+               },
+               "mode" : "button",
+               "parameters" : {},
+               "path" : "/user/hand/right/input/y"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/valheim/in/quickactions"
+                  },
+                  "touch" : {
+                     "output" : "/actions/valheim/in/stopgesturedlocomotion"
+                  }
+               },
+               "mode" : "button",
+               "parameters" : {},
+               "path" : "/user/hand/left/input/dpad_left"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/valheim/in/toggleinventory"
+                  },
+                  "touch" : {
+                     "output" : "/actions/valheim/in/stopgesturedlocomotion"
+                  }
+               },
+               "mode" : "button",
+               "parameters" : {},
+               "path" : "/user/hand/left/input/dpad_right"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/valheim/in/rightclick"
+                  }
+               },
+               "mode" : "button",
+               "parameters" : {},
+               "path" : "/user/hand/right/input/bumper"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/valheim/in/stopgesturedlocomotion"
+                  }
+               },
+               "mode" : "button",
+               "parameters" : {},
+               "path" : "/user/hand/right/input/bumper"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/valheim/in/addmappin"
+                  }
+               },
+               "mode" : "joystick",
+               "parameters" : {},
+               "path" : "/user/hand/right/input/thumbstick"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/valheim/in/rightclick"
+                  }
+               },
+               "mode" : "button",
+               "parameters" : {},
+               "path" : "/user/hand/left/input/bumper"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/valheim/in/stopgesturedlocomotion"
+                  }
+               },
+               "mode" : "button",
+               "parameters" : {},
+               "path" : "/user/hand/left/input/bumper"
             }
          ]
       }
    },
    "category" : "steamvr_input",
-   "controller_type" : "vive_controller",
-   "description" : "",
+   "controller_type" : "frame_controller",
+   "description" : "Based on the Touch bindings, with the D-pad, X/Y, view/menu buttons, left stick click and bumpers given their own actions.",
    "interaction_profile" : "",
-   "name" : "Konfiguration „[Testing] ValheimVR“ für Vive Controller gespeichert",
+   "name" : "My Valheim VR configuration for Frame Controller",
    "options" : {},
    "simulated_actions" : []
 }

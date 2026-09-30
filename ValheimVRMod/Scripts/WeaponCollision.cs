@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Linq;
 using UnityEngine;
 using ValheimVRMod.Utilities;
 using ValheimVRMod.VRCore;
@@ -40,14 +39,6 @@ namespace ValheimVRMod.Scripts
         public LocalWeaponWield weaponWield;
         public static bool isLastHitOnTerrain;
         public bool isTwoHandedMultitargetSwipeActive { get { return twoHandedMultitargetSwipeCountdown > twoHandedMultitargetSwipeDuration * 0.5f; } }
-
-        private static readonly int[] ignoreLayers = {
-            LayerUtils.WATERVOLUME_LAYER,
-            LayerUtils.WATER,
-            LayerUtils.UI_PANEL_LAYER,
-            LayerUtils.CHARARCTER_TRIGGER,
-            LayerUtils.ITEM_LAYER,
-        };
 
         private void Awake()
         {
@@ -148,9 +139,23 @@ namespace ValheimVRMod.Scripts
             MaybeStabCharacter(collider);
         }
 
+        // Whether the character is a training dummy (T.W.I.G.), which is there to practice fighting and so is hit like
+        // an enemy, whatever layer its colliders are on and even if it is flagged as tamed.
+        public static bool IsTrainingDummy(Character character)
+        {
+            return character != null && character.m_faction == Character.Faction.TrainingDummy;
+        }
+
         public static bool IsFriendly(Character character)
         {
-            if (character.m_tamed || character.gameObject == Player.m_localPlayer.gameObject)
+            if (IsTrainingDummy(character))
+            {
+                return false;
+            }
+
+            // IsTamed() and IsAggravated() rather than the m_tamed and m_aggravated fields: on a character owned by
+            // another client the fields are only refreshed from the ZDO by those accessors.
+            if (character.IsTamed() || character.gameObject == Player.m_localPlayer.gameObject)
             {
                 return true;
             }
@@ -160,7 +165,7 @@ namespace ValheimVRMod.Scripts
                 return Player.m_localPlayer == null || !Player.m_localPlayer.m_pvp || !character.GetComponent<Player>().m_pvp;
             }
 
-            return character.m_baseAI != null && !character.m_baseAI.m_aggravated && character.m_faction == Character.Faction.Dverger;
+            return character.m_baseAI != null && !character.m_baseAI.IsAggravated() && character.m_faction == Character.Faction.Dverger;
         }
 
         private static bool IsHostileCharacter(Collider collider)
@@ -350,7 +355,7 @@ namespace ValheimVRMod.Scripts
         private bool tryHitTarget(GameObject target, bool isSlowAttack, float speed)
         {
             // ignore certain Layers
-            if (ignoreLayers.Contains(target.layer))
+            if (LayerUtils.IsNonAttackableLayer(target.layer))
             {
                 return false;
             }
@@ -450,8 +455,16 @@ namespace ValheimVRMod.Scripts
         public void setColliderParent(MeshFilter meshFilter, Vector3 handPosition, int itemHash, bool isDominantHand)
         {
             var meshTranform = meshFilter.transform;
-            outline = meshTranform.parent.gameObject.AddComponent<Outline>();
+            outline = meshTranform.parent.gameObject.GetComponent<Outline>();
+            if (outline == null)
+            {
+                outline = meshTranform.parent.gameObject.AddComponent<Outline>();
+            }
             outline.OutlineMode = Outline.Mode.OutlineVisible;
+            // Update() turns the outline on when it is needed. It has to start off: Update() never runs its outline
+            // logic for items without an attack (e.g. the fishing rod), which would otherwise keep the default white
+            // outline forever.
+            outline.enabled = false;
 
             this.isVanillaRightHandedWeapon = isDominantHand;
             item = this.isVanillaRightHandedWeapon ? Player.m_localPlayer.GetRightItem() : Player.m_localPlayer.GetLeftItem();

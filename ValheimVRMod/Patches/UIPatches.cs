@@ -72,11 +72,24 @@ namespace ValheimVRMod.Patches
                 return;
             }
             float angle = VHVRConfig.UseVrControls() && VRPlayer.vrCam != null ? VRPlayer.vrCam.transform.rotation.eulerAngles.y : playerRot.eulerAngles.y;
-            __instance.m_smallMarker.localRotation = Quaternion.Euler(0f, 0f, -angle);
+            Quaternion markerRotation = Quaternion.Euler(0f, 0f, -angle);
+            __instance.m_smallMarker.localRotation = markerRotation;
+            // The vanilla code copies the world rotation of the small marker onto the large one,
+            // but the small marker lives on the VR HUD canvas, which can have any orientation,
+            // so the large marker needs its local rotation set here too.
+            if (__instance.m_mode == Minimap.MapMode.Large)
+            {
+                __instance.m_largeMarker.localRotation = markerRotation;
+            }
             Ship controlledShip = player.GetControlledShip();
             if (controlledShip)
             {
-                __instance.m_smallShipMarker.localRotation = Quaternion.Euler(0f, 0f, -controlledShip.transform.rotation.eulerAngles.y);
+                Quaternion shipMarkerRotation = Quaternion.Euler(0f, 0f, -controlledShip.transform.rotation.eulerAngles.y);
+                __instance.m_smallShipMarker.localRotation = shipMarkerRotation;
+                if (__instance.m_mode == Minimap.MapMode.Large)
+                {
+                    __instance.m_largeShipMarker.localRotation = shipMarkerRotation;
+                }
             }
         }
     }
@@ -839,9 +852,7 @@ namespace ValheimVRMod.Patches
     [HarmonyPatch(typeof(FejdStartup), "SetupGui")]
     class PatchFejd {
         public static void Postfix(FejdStartup __instance) {
-            if (VHVRConfig.NonVrPlayer()) {
-                return;
-            }
+            // Also shown in flatscreen, e.g. so that settings can be read through desktop translation tools.
             ConfigSettings.instantiate(__instance.m_mainMenu.transform.Find("MenuList"), __instance.m_mainMenu.transform, __instance.m_settingsPrefab, enableTransformButtons: false);
         }
     }
@@ -849,10 +860,8 @@ namespace ValheimVRMod.Patches
     [HarmonyPatch(typeof(Menu), "Start")]
     class PatchMenu {
         public static void Postfix(Menu __instance) {
-            if (VHVRConfig.NonVrPlayer()) {
-                return;
-            }
-            ConfigSettings.instantiate(__instance.m_menuDialog, __instance.transform, __instance.m_settingsPrefab, enableTransformButtons: true);
+            // Also shown in flatscreen, but without the transform buttons, which position HUD panels with the VR hands.
+            ConfigSettings.instantiate(__instance.m_menuDialog, __instance.transform, __instance.m_settingsPrefab, enableTransformButtons: !VHVRConfig.NonVrPlayer());
         }
     }    
     
