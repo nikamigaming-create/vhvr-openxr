@@ -4,7 +4,7 @@ One Valheim VR fork package containing current VHVR and its OpenXR additions: re
 
 ## Version and upstream
 
-This candidate contains upstream master through [7fa70ef129a1f022365ebdc1e4ffdf1ff8836802](https://github.com/brandonmousseau/vhvr-mod/commit/7fa70ef129a1f022365ebdc1e4ffdf1ff8836802), checked September 29, 2026 Pacific time. It includes the screenshot, mirror, main-menu visibility and two-handed secondary attack changes available at that check. The rebuilt DLL retains upstream's internal 0.10.5 version string; the package manifest records its exact source revision and every runtime file's SHA-256.
+This candidate contains upstream master through [47fad0494de5daee19356d5eb4d692671a0e3994](https://github.com/brandonmousseau/vhvr-mod/commit/47fad0494de5daee19356d5eb4d692671a0e3994), checked September 29, 2026 at 21:03 Pacific time. It includes the screenshot, mirror, main-menu visibility, two-handed secondary attack and drawbridge gesture source changes available at that check. The rebuilt DLL retains upstream's internal 0.10.5 version string; the package manifest records its exact source revision and every runtime file's SHA-256.
 
 Our current local OpenXR input fixes are included: live controller reads and nonvisual action updates before the game/UI sample them. A small fork correction guards the disabled upstream debug walking indicator against an uninitialized LineRenderer during startup, fixing the exception caught by this candidate's first game run. SOURCE-PROVENANCE.json records the correction and 19 adapter source files.
 
@@ -62,7 +62,7 @@ Rendering uses multipass/deferred mode. Game binaries/data, BepInEx loader files
 
 Repository: https://github.com/nikamigaming-create/vhvr-openxr. VHVR-OpenXR-v0.1.0-source.zip contains corresponding fork sources, build scripts, tracked VR assets and notices. See LICENSE-GPL-3.0.txt, openxr-licenses and third-party-notices.
 
-Install .NET 8 SDK and BepInEx in your owned game installation. From this Git checkout, run:
+Install .NET 8 SDK. Your owned game directory needs BepInEx and the VR libraries from this package or official VHVR v0.10.5 as build references. From this Git checkout, run:
 
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\OpenXR\scripts\Build-CurrentFork.ps1 -ValheimDir "D:\SteamLibrary\steamapps\common\Valheim"
 

@@ -3,7 +3,7 @@ param(
     [string]$BaseVHVRArchive,
     [string]$OpenXRPackage,
     [string]$Destination,
-    [string]$UpstreamCommit = '7fa70ef129a1f022365ebdc1e4ffdf1ff8836802'
+    [string]$UpstreamCommit = '47fad0494de5daee19356d5eb4d692671a0e3994'
 )
 $ErrorActionPreference = 'Stop'
 $openxrRoot = Split-Path $PSScriptRoot -Parent
@@ -32,12 +32,27 @@ if (!$OpenXRPackage) {
 }
 $unityMetadata = Get-Content -LiteralPath (Join-Path $OpenXRPackage 'package.json') -Raw | ConvertFrom-Json
 if ($unityMetadata.name -ne 'com.unity.xr.openxr' -or $unityMetadata.version -ne '1.16.1') { throw 'Expected Unity OpenXR 1.16.1.' }
-$sourceCommit = (& git -C $repoRoot rev-parse $UpstreamCommit).Trim()
-if ($LASTEXITCODE) { throw 'Upstream commit is unavailable in this checkout.' }
-& git -C $repoRoot merge-base --is-ancestor $sourceCommit HEAD
-if ($LASTEXITCODE) { throw 'Checkout does not contain the selected upstream revision.' }
-$upstreamChanges = @(& git -C $repoRoot diff --name-only $sourceCommit -- ValheimVRMod Unity/ValheimVR/Assets/SteamVR Unity/ValheimVR/Assets/SteamVR_Input Unity/ValheimVR/Assets/AssetBundles Unity/ValheimVR/Assets/StreamingAssets/SteamVR)
-if ($upstreamChanges | Where-Object { $_ -ne 'ValheimVRMod/Scripts/GesturedLocomotionManager.cs' }) { throw 'Unexpected changes to upstream gameplay, controllers or assets.' }
+if (Test-Path -LiteralPath (Join-Path $repoRoot '.git')) {
+    $sourceCommit = (& git -C $repoRoot rev-parse $UpstreamCommit).Trim()
+    if ($LASTEXITCODE) { throw 'Upstream commit is unavailable in this checkout.' }
+    & git -C $repoRoot merge-base --is-ancestor $sourceCommit HEAD
+    if ($LASTEXITCODE) { throw 'Checkout does not contain the selected upstream revision.' }
+    $upstreamChanges = @(& git -C $repoRoot diff --name-only $sourceCommit -- ValheimVRMod Unity/ValheimVR/Assets/SteamVR Unity/ValheimVR/Assets/SteamVR_Input Unity/ValheimVR/Assets/AssetBundles Unity/ValheimVR/Assets/StreamingAssets/SteamVR)
+    if ($upstreamChanges | Where-Object { $_ -ne 'ValheimVRMod/Scripts/GesturedLocomotionManager.cs' }) { throw 'Unexpected changes to upstream gameplay, controllers or assets.' }
+} else {
+    # The corresponding source ZIP has no Git history; its recorded revision
+    # and exact adapter/correction source hashes provide the archive contract.
+    $savedSource = Get-Content -LiteralPath (Join-Path $openxrRoot 'SOURCE-PROVENANCE.json') -Raw | ConvertFrom-Json
+    if ($savedSource.upstreamCommit -ne $UpstreamCommit) { throw 'Source archive revision differs from the selected build revision.' }
+    $sourceCommit = $savedSource.upstreamCommit
+    foreach ($entry in $savedSource.sources) {
+        if ((Get-FileHash -LiteralPath (Join-Path $openxrRoot ('src/nikami-openxr/' + $entry.name))).Hash -ne $entry.sha256) { throw ('Source archive hash mismatch: ' + $entry.name) }
+    }
+    foreach ($entry in $savedSource.forkCorrections) {
+        if ((Get-FileHash -LiteralPath (Join-Path $repoRoot $entry.path)).Hash -ne $entry.sha256) { throw ('Source archive correction mismatch: ' + $entry.path) }
+    }
+    $upstreamChanges = @($savedSource.forkCorrections.path)
+}
 $payload = Join-Path $Destination 'openxr'
 New-Item -ItemType Directory -Path $payload -Force | Out-Null
 $manifestFiles = [ordered]@{}
