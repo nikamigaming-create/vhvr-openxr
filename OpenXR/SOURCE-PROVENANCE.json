@@ -1,0 +1,102 @@
+{
+  "base_commit": "da930340e6dc997211075d8939b555efd6b56e39",
+  "adapter_sha256": "E57B71754B70D55F9DEFF95EF5204F9E054486E187E1761EEF59EF5D61A022DB",
+  "sources": [
+    {
+      "name": "AssemblyInfo.cs",
+      "sha256": "86efb4a729f6036315a3ae4dd14bf0a6e02eb6336d7443dc3aff903bf7240ab6",
+      "basis": "HEAD da93034"
+    },
+    {
+      "name": "InputAdapter.cs",
+      "sha256": "ef6a3bd5421887220ef11d3e428ebafc2bf4c56fb806829490002ba3a7953e90",
+      "basis": "HEAD da93034"
+    },
+    {
+      "name": "NikamiIntegration.cs",
+      "sha256": "90366338f61f004fa646d7c93b49a4cbb8377df0e519ce4568725fb5c4a39c5f",
+      "basis": "HEAD da93034"
+    },
+    {
+      "name": "OpenXRAmbientOcclusion.cs",
+      "sha256": "ccb3179201541e81f47da33ece09cae5c149c2e9ddf3dc4b25aa4e56c5a66b01",
+      "basis": "HEAD da93034"
+    },
+    {
+      "name": "OpenXRContactSolver.cs",
+      "sha256": "119c733b3ef20d156002dbe3078e143ffe308a224aeaa673dd931e15fa2df8bc",
+      "basis": "HEAD da93034"
+    },
+    {
+      "name": "OpenXRCreatureGrip.cs",
+      "sha256": "c1731a58b18112318215146c44da3f3b2a9c0b865dcbe48588df37b0fb602557",
+      "basis": "8-second creature hold; equal-mass small creatures"
+    },
+    {
+      "name": "OpenXREquipmentQuality.cs",
+      "sha256": "cf64ec413deaeccd5c2e47e207f11da900b99117b0f3223497b7cfbb4216f761",
+      "basis": "HEAD da93034"
+    },
+    {
+      "name": "OpenXRHandRig.cs",
+      "sha256": "eb2cd0e15730abc3f23342bc224d1fae0c3d927f1a1a986c6b2a1353a3b3f05d",
+      "basis": "thumb correction"
+    },
+    {
+      "name": "OpenXRImageQuality.cs",
+      "sha256": "42c5f2979e16796365c496fe2cc64f2e6480e6b2916bfb5957a4f0685c465980",
+      "basis": "HEAD da93034"
+    },
+    {
+      "name": "OpenXRImpactGate.cs",
+      "sha256": "6ab6d97d79ce13b5e5cee7b3e0e208d82d98d9d743e4fca008e79a82478f1cde",
+      "basis": "HEAD da93034"
+    },
+    {
+      "name": "OpenXRInputFocus.cs",
+      "sha256": "cf3a068789e7d4bae440b0983b989a54af5e8670f5d03e58cfcdae3ffb468d18",
+      "basis": "HEAD da93034"
+    },
+    {
+      "name": "OpenXRPhysicalEquipment.cs",
+      "sha256": "83031571f7163010377e387bf5ea0202110c5e467bad4c4ceb62a03e5e2f3371",
+      "basis": "HEAD da93034"
+    },
+    {
+      "name": "OpenXRPhysicalGrab.cs",
+      "sha256": "8f33b7860ea07d17f5b6757c0a17167b5d2fbf3f87d7b21d3e2929d68b511dbb",
+      "basis": "HEAD da93034"
+    },
+    {
+      "name": "OpenXRPhysicalHands.cs",
+      "sha256": "c918dd7e9769748bee1ccdffedd45954ba23fc2003f66abe6e0170ca7d123865",
+      "basis": "HEAD da93034"
+    },
+    {
+      "name": "OpenXRPlugin.cs",
+      "sha256": "c9bfdf9a8ce2672ad8463eff3c2f0191efdf90dd2dd4b8bf3c24e39ca7eb52ba",
+      "basis": "HEAD da93034"
+    },
+    {
+      "name": "OpenXRStereoColor.cs",
+      "sha256": "4ec572cdcda81e5cc6451e3665ca3517e531b1b1ea8c7187b355137e1a4aca2f",
+      "basis": "HEAD da93034"
+    },
+    {
+      "name": "OpenXRTrackedEquipment.cs",
+      "sha256": "0455a8bc3f2ce1f4dee071a2d140926b0461d4208c85cbb847fb72b0fd3936eb",
+      "basis": "HEAD da93034"
+    },
+    {
+      "name": "RuntimeAdapter.cs",
+      "sha256": "ce683fd449956fe9031ac21efe5c156e28a5ba5ddf8e80f8823f228daef0301d",
+      "basis": "HEAD da93034"
+    },
+    {
+      "name": "SinglePassRenderer.cs",
+      "sha256": "f8c8d6f88fd3840b093eb5e11db2a735b2ff8a02a2aa1627691b134bd255fa90",
+      "basis": "HEAD da93034"
+    }
+  ],
+  "private_gameplay_check": "showcase-shore-18"
+}

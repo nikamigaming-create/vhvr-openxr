@@ -1,7 +1,5 @@
 # VHVR-Mod
-This fork's development branch adds a native Unity OpenXR companion for VHVR v0.10.5.
-See [OpenXR architecture, build and validation status](OpenXR/README.md). Nikami and
-its launcher remain separate. The upstream SteamVR implementation is retained.
+This fork provides a native OpenXR companion for VHVR, including articulated hands and physical contact/grabbing. Download the XR-only release from [GitHub Releases](https://github.com/nikamigaming-create/vhvr-openxr/releases) and read [installation, features and validation limits](OpenXR/README.md). BepInEx and official VHVR are installed separately. The Nikami gameplay mod and launcher are not included. The upstream SteamVR implementation is retained.
 
 This is an experimental mod for the PC game Valheim that adds in native VR support using Unity and SteamVR with OpenVR.
 

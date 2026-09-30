@@ -40,6 +40,15 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
     static float lastVrCameraFrame = -1;
     static bool cameraExpected;
     static float nextCameraScan;
+    // Render-pass queries cross the managed/native XR boundary. They are only
+    // needed for the watchdog, not once per submitted frame; polling them at
+    // 10 Hz keeps the health signal responsive without adding a native call to
+    // the VR game loop.
+    static float nextDisplayProbe;
+    static XRDisplaySubsystem probedDisplay;
+    static bool probedDisplayRunning;
+    static int probedRenderPasses;
+    static XRDisplaySubsystem displaySubsystem;
     static XRDisplaySubsystem observedDisplay;
     bool previousRunInBackground;
     void Awake()
@@ -47,6 +56,7 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
         Log = Logger;
         var arguments = Environment.GetCommandLineArgs();
         if (!Array.Exists(arguments, a => a.Equals("-ModEnabled=true", StringComparison.OrdinalIgnoreCase)) ||
+            Array.Exists(arguments, a => a.Equals("-flatScreenMode=true", StringComparison.OrdinalIgnoreCase)) ||
             Array.Exists(arguments, a => a.Equals("-vrbackend=steamvr", StringComparison.OrdinalIgnoreCase)))
         {
             enabled = false;
@@ -91,8 +101,13 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
         try
         {
             var settings = OpenXRSettings.Instance;
+            // The player path retains Valheim's deferred lighting. The forward
+            // SPI experiment changed lighting and failed physical acceptance.
             settings.renderMode = OpenXRSettings.RenderMode.MultiPass;
             settings.depthSubmissionMode = OpenXRSettings.DepthSubmissionMode.None;
+            // Wait before input polling so the render loop does not miss the
+            // current display interval while blocking after game simulation.
+            settings.latencyOptimization = OpenXRSettings.LatencyOptimization.PrioritizeInputPolling;
             var profiles = new OpenXRFeature[] {
                 ScriptableObject.CreateInstance<OculusTouchControllerProfile>(),
                 ScriptableObject.CreateInstance<ValveIndexControllerProfile>(),
@@ -149,6 +164,11 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
         lastVrCameraFrame = -1;
         cameraExpected = false;
         nextCameraScan = 0;
+        nextDisplayProbe = 0;
+        probedDisplay = null;
+        probedDisplayRunning = false;
+        probedRenderPasses = 0;
+        displaySubsystem = Loader?.GetLoadedSubsystem<XRDisplaySubsystem>();
         unhealthySince = -1;
         sessionStartedAt = __result ? Time.unscaledTime : -1;
         recoveryAttempted = false;
@@ -160,9 +180,10 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
     void Update()
     {
         if (!Ready) return;
-        // Run the upstream action/event machinery once per game frame. Only its data
-        // provider changes; button edges and action-set activation stay upstream.
-        SteamVR_Input.UpdateNonVisualActions();
+        // SteamVR_Behaviour already updates non-visual actions in its configured
+        // OnUpdate phase. Calling it here as well duplicates the full action-set
+        // walk every frame; leave that phase to the upstream scheduler and only
+        // publish poses early enough for VHVR's hand/weapon update.
         SteamVR_Input.UpdatePoseActions();
         if (SessionStarted)
         {
@@ -171,7 +192,7 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
         }
         if (Time.unscaledTime < nextReport) return;
         nextReport = Time.unscaledTime + 10;
-        var display = Loader?.GetLoadedSubsystem<XRDisplaySubsystem>();
+        var display = displaySubsystem ?? Loader?.GetLoadedSubsystem<XRDisplaySubsystem>();
         Log.LogInfo($"OpenXR live: display={display?.running}, passes={LastRenderPassCount}, healthy={DisplayHealthy}, "
             + $"framesHealthy={FramesHealthy}, vrFrames={VRCameraFrames}, frameAge={LastVRCameraFrameAge:0.0}, "
             + $"focused={DisplayFocused}, recoveries={RecoveryCount}, devices={UnityEngine.InputSystem.InputSystem.devices.Count}, "
@@ -190,30 +211,43 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
 
     void UpdateWatchdog()
     {
-        var display = Loader?.GetLoadedSubsystem<XRDisplaySubsystem>();
+        var display = displaySubsystem ?? Loader?.GetLoadedSubsystem<XRDisplaySubsystem>();
+        if (displaySubsystem == null && display != null) displaySubsystem = display;
         if (!ReferenceEquals(display, observedDisplay))
         {
             if (observedDisplay != null) observedDisplay.displayFocusChanged -= OnDisplayFocusChanged;
             observedDisplay = display;
             if (observedDisplay != null) observedDisplay.displayFocusChanged += OnDisplayFocusChanged;
         }
-        bool running = false;
-        int passes = 0;
-        try
+        float now = Time.unscaledTime;
+        if (!ReferenceEquals(display, probedDisplay))
         {
-            running = display != null && display.running;
-            passes = display == null ? 0 : display.GetRenderPassCount();
+            probedDisplay = display;
+            nextDisplayProbe = 0;
+            probedDisplayRunning = false;
+            probedRenderPasses = 0;
         }
-        catch (Exception error)
+        if (now >= nextDisplayProbe)
         {
-            Log.LogWarning("OpenXR watchdog read failed: " + error.Message);
+            nextDisplayProbe = now + .1f;
+            try
+            {
+                probedDisplayRunning = display != null && display.running;
+                probedRenderPasses = display == null ? 0 : display.GetRenderPassCount();
+            }
+            catch (Exception error)
+            {
+                probedDisplayRunning = false;
+                probedRenderPasses = 0;
+                Log.LogWarning("OpenXR watchdog read failed: " + error.Message);
+            }
         }
-        LastRenderPassCount = passes;
-        DisplayHealthy = running && passes > 0;
-        LastVRCameraFrameAge = lastVrCameraFrame < 0 ? -1 : Mathf.Max(0, Time.unscaledTime - lastVrCameraFrame);
-        if (Time.unscaledTime >= nextCameraScan)
+        LastRenderPassCount = probedRenderPasses;
+        DisplayHealthy = probedDisplayRunning && probedRenderPasses > 0;
+        LastVRCameraFrameAge = lastVrCameraFrame < 0 ? -1 : Mathf.Max(0, now - lastVrCameraFrame);
+        if (now >= nextCameraScan)
         {
-            nextCameraScan = Time.unscaledTime + .5f;
+            nextCameraScan = now + .5f;
             cameraExpected = Player.m_localPlayer && Camera.allCameras.Any(camera =>
                 camera && camera.name == "VRCamera" && camera.enabled && camera.gameObject.activeInHierarchy);
         }
@@ -237,8 +271,8 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
         // Do not restart during normal startup: Unity/OpenXR may publish an
         // idle subsystem for several seconds before the first render pass. A
         // recovery is only automatic after at least one real display frame.
-        if (sawHealthyFrame && !recoveryAttempted && Time.unscaledTime - sessionStartedAt >= 8f
-            && Time.unscaledTime - unhealthySince >= 2f)
+        if (sawHealthyFrame && !recoveryAttempted && now - sessionStartedAt >= 8f
+            && now - unhealthySince >= 2f)
             TryRecover(DisplayHealthy ? "VRCamera stopped submitting frames" : "display stopped or has no render passes");
     }
 
@@ -259,6 +293,7 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
             Loader.Stop();
             bool started = Loader.Start();
             SessionStarted = started;
+            displaySubsystem = Loader.GetLoadedSubsystem<XRDisplaySubsystem>();
             sessionStartedAt = Time.unscaledTime;
             unhealthySince = -1;
             var input = Loader.GetLoadedSubsystem<XRInputSubsystem>();
@@ -279,7 +314,12 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
         Camera.onPreRender -= CountVRCameraFrame;
         if (observedDisplay != null) observedDisplay.displayFocusChanged -= OnDisplayFocusChanged;
         observedDisplay = null;
+        probedDisplay = null;
+        probedDisplayRunning = false;
+        probedRenderPasses = 0;
+        displaySubsystem = null;
         InputAdapter.Shutdown();
+        SinglePassRenderer.Shutdown();
         Loader?.Stop();
         Loader?.Deinitialize();
         Application.runInBackground = previousRunInBackground;

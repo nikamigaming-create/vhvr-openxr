@@ -5,6 +5,7 @@ using System.Runtime.Serialization;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using UnityEngine;
 using Valve.VR;
@@ -23,6 +24,10 @@ internal static class RuntimeAdapter
     static Func<Component> leftEstimator, rightEstimator;
     static AccessTools.FieldRef<MeshRenderer> hipTrackerRenderer;
     static TransformSlot trackedPelvis, pelvis;
+    sealed class RenderFrameStamp { internal int Frame = -1; }
+    static readonly ConditionalWeakTable<MonoBehaviour, RenderFrameStamp> RenderFrames = new();
+    static int lastVrCameraQualityFrame = -1;
+    static readonly List<Behaviour> cameraEffects = new();
 
     // Resolve metadata once; keep reading the live Unity objects after scene loads.
     sealed class TransformSlot
@@ -63,6 +68,11 @@ internal static class RuntimeAdapter
 
     internal static void Install(Harmony h)
     {
+        OpenXRImageQuality.Install(h);
+        OpenXRAmbientOcclusion.Install(h);
+        OpenXREquipmentQuality.Install(h);
+        OpenXRInputFocus.Install();
+        OpenXRPhysicalHands.Install(h);
         Hook(h, typeof(SteamVR), "Initialize", nameof(Skip));
         Hook(h, typeof(SteamVR), "get_instance", nameof(GetRuntime));
         Hook(h, typeof(SteamVR), "get_hmd_DisplayFrequency", nameof(Frequency));
@@ -97,10 +107,44 @@ internal static class RuntimeAdapter
             postfix: new HarmonyMethod(typeof(RuntimeAdapter), nameof(TrackedVelocity)));
         Hook(h, typeof(SteamVR_Input), "UpdateSkeletonActions", nameof(Skip));
         Hook(h, typeof(SteamVR_Action_Pose), "SetTrackingUniverseOrigin", nameof(SetOrigin));
+        // VHVR's render callbacks update gameplay transforms, but Unity invokes
+        // them once for every active camera. In multipass those cameras consume
+        // the same game-frame pose; repeating the writes for each eye only adds
+        // main-thread work and can make the hand/weapon path hitch. Gate each
+        // live component instance once per frame while preserving the first
+        // callback's ordering and all physics/input updates.
+        foreach (var target in new[] {
+            AccessTools.Method("ValheimVRMod.Scripts.WeaponWield:OnRenderObject"),
+            AccessTools.Method("ValheimVRMod.Scripts.Block.Block:OnRenderObject"),
+            AccessTools.Method("ValheimVRMod.Scripts.Block.ShieldBlock:OnRenderObject"),
+            AccessTools.Method("ValheimVRMod.Scripts.WeaponCollision:OnRenderObject"),
+            AccessTools.Method("ValheimVRMod.Scripts.FistCollision:OnRenderObject"),
+            AccessTools.Method("ValheimVRMod.Scripts.HandGesture:OnRenderObject"),
+            AccessTools.Method("ValheimVRMod.VRCore.UI.VRGUI:OnRenderObject"),
+            AccessTools.Method("ValheimVRMod.Utilities.PhysicsEstimator:OnRenderObject")
+        })
+            if (target != null) h.Patch(target, prefix: new HarmonyMethod(typeof(RuntimeAdapter), nameof(RenderOncePerFrame)));
         h.Patch(AccessTools.Method("ValheimVRMod.Utilities.CameraUtils:getCamera"),
             new HarmonyMethod(typeof(RuntimeAdapter), nameof(SelectMainCamera)));
         h.Patch(AccessTools.Method("ValheimVRMod.VRCore.VRPlayer:enableCameras"),
             new HarmonyMethod(typeof(RuntimeAdapter), nameof(RefreshWorldCamera)));
+        h.Patch(AccessTools.Method("ValheimVRMod.Utilities.CameraUtils:copyCamera"),
+            postfix: new HarmonyMethod(typeof(RuntimeAdapter), nameof(InitializeWorldColor)));
+        // VHVR's legacy post stack is authored for the mono/OpenVR camera.
+        // In native OpenXR multipass the depth-of-field and motion-blur
+        // models can reapply after the graphics menu changes settings,
+        // producing sudden focus spikes or one-eye softness. Keep the rest of
+        // the post stack (bloom, color grading and occlusion) for fidelity.
+        Camera.onPreCull += ConfigureOpenXrCamera;
+        // Unity can invoke the legacy post component before Camera.onPreCull.
+        // Guard its failed-runtime path at the component boundary so a VR
+        // camera left behind after an unavailable OpenXR runtime cannot throw
+        // a NullReferenceException every frame.
+        var postProcessingPreCull = AccessTools.Method(
+            typeof(UnityEngine.PostProcessing.PostProcessingBehaviour), "OnPreCull");
+        if (postProcessingPreCull != null)
+            h.Patch(postProcessingPreCull,
+                prefix: new HarmonyMethod(typeof(RuntimeAdapter), nameof(PreparePostProcessing)));
         // VHVR keeps its VR camera across scene loads, but its underwater light
         // blocker is an unparented scene object. Loading the world destroys that
         // blocker and makes every subsequent physics tick throw. Give the object
@@ -153,26 +197,50 @@ internal static class RuntimeAdapter
         SteamVR.initializedState = SteamVR.InitializedStates.InitializeSuccess;
         settings.autoEnableVR = false;
         settings.lockPhysicsUpdateRateToRenderFrequency = false;
+        // Create the managed SteamVR event host before VHVR instantiates and
+        // parents its camera rig. Lazy initialization can otherwise find the
+        // rig's SteamVR_Render under the menu camera and mark that entire scene
+        // root DontDestroyOnLoad. MenuScene then survives a fast server join,
+        // retaining a second sun and overwriting EnvMan's sky/fog/wind globals.
+        // The standalone host retains pose/input callbacks without retaining
+        // menu scenery or transferring it into the gameplay scene.
+        SteamVR_Behaviour.Initialize();
         SteamVR_Input.Initialize();
     }
     static bool Skip() => false;
+    static bool RenderOncePerFrame(MonoBehaviour __instance)
+    {
+        if (!__instance) return false;
+        var stamp = RenderFrames.GetOrCreateValue(__instance);
+        int frame = Time.frameCount;
+        if (stamp.Frame == frame) return false;
+        stamp.Frame = frame;
+        return true;
+    }
     static bool SelectMainCamera(string name, ref Camera __result)
     {
         if (name != "Main Camera") return true;
         // Valheim 1.0 retains an inactive EntryPointSceneLoader camera with this
         // same name and a zero culling mask. VHVR's name-only cache can choose
         // it, leaving the desktop camera rendering the world into both eyes.
-        var camera = GameCamera.instance ? GameCamera.instance.GetComponent<Camera>() : null;
-        if (!camera)
-            camera = UnityEngine.Object.FindObjectsByType<Camera>(FindObjectsSortMode.None)
-                .FirstOrDefault(c => c.name == name && c.enabled && c.cullingMask != 0);
+        var camera = FindWorldCamera();
         if (!camera) return true;
         __result = camera;
         return false;
     }
-    static void RefreshWorldCamera(Camera ____vrCam)
+    static Camera FindWorldCamera()
     {
         var camera = GameCamera.instance ? GameCamera.instance.GetComponent<Camera>() : null;
+        if (camera && camera.cullingMask != 0) return camera;
+        if (worldCamera && worldCamera.cullingMask != 0) return worldCamera;
+        // The menu has no GameCamera singleton. Revisit the early empty
+        // EntryPointSceneLoader camera when the real menu camera appears.
+        return UnityEngine.Object.FindObjectsByType<Camera>(FindObjectsSortMode.None)
+            .FirstOrDefault(c => c.name == "Main Camera" && c.enabled && c.cullingMask != 0);
+    }
+    static void RefreshWorldCamera(Camera ____vrCam)
+    {
+        var camera = FindWorldCamera();
         if (!camera || camera == worldCamera) return;
         worldCamera = camera;
         var vr = ____vrCam;
@@ -183,6 +251,93 @@ internal static class RuntimeAdapter
                      .Where(c => c && c.GetType().FullName == "ValheimVRMod.Scripts.FadingManager"))
             UnityEngine.Object.Destroy(fade);
         vr.enabled = false;
+    }
+    static void ConfigureOpenXrCamera(Camera camera)
+    {
+        if (!camera || camera.name != "VRCamera" || Time.frameCount == lastVrCameraQualityFrame)
+            return;
+        lastVrCameraQualityFrame = Time.frameCount;
+        camera.GetComponents(cameraEffects);
+        foreach (var effect in cameraEffects)
+        {
+            if (!effect) continue;
+            string name = effect.GetType().Name;
+            if (name == "PostProcessingBehaviour")
+            {
+                // If the OpenXR runtime did not come up, VHVR can still leave
+                // its camera alive while its post-processing component graph is
+                // only partially initialized. Do not let that graph throw on
+                // every camera callback while the adapter is failed closed.
+                if (!OpenXRPlugin.Ready)
+                {
+                    effect.enabled = false;
+                    continue;
+                }
+                var profile = ((UnityEngine.PostProcessing.PostProcessingBehaviour)effect).profile;
+                if (profile == null || profile.depthOfField == null || profile.motionBlur == null)
+                {
+                    effect.enabled = false;
+                    continue;
+                }
+                // VHVR's AmplifyOcclusionEffect is the stereo-friendly SSAO
+                // replacement. Leave that effect enabled, but suppress the
+                // vanilla AO model so the two passes never stack.
+                if (profile.ambientOcclusion != null)
+                    profile.ambientOcclusion.enabled = false;
+                profile.depthOfField.enabled = false;
+                profile.motionBlur.enabled = false;
+                PrepareWorldColor(camera, profile);
+                continue;
+            }
+            if (name == "DepthOfField" || name == "MotionBlur")
+                effect.enabled = false;
+        }
+    }
+    static bool PreparePostProcessing(UnityEngine.PostProcessing.PostProcessingBehaviour __instance)
+    {
+        if (!OpenXRPlugin.Ready)
+        {
+            __instance.enabled = false;
+            return false;
+        }
+        var camera = __instance.GetComponent<Camera>();
+        if (!camera || camera.name != "VRCamera")
+            return true;
+        var profile = __instance.profile;
+        if (profile == null)
+            return false;
+        if (profile.ambientOcclusion != null)
+            profile.ambientOcclusion.enabled = false;
+        if (profile.depthOfField != null)
+            profile.depthOfField.enabled = false;
+        if (profile.motionBlur != null)
+            profile.motionBlur.enabled = false;
+        PrepareWorldColor(camera, profile);
+        return true;
+    }
+    static void PrepareWorldColor(Camera camera, UnityEngine.PostProcessing.PostProcessingProfile profile)
+    {
+        if (SinglePassRenderer.Active) return;
+        // Keep highlights until the native ACES/color-grading stage. VHVR's
+        // legacy CopyCamera forces LDR even when the source camera uses HDR.
+        if (!camera.allowHDR) camera.allowHDR = true;
+        // Apply the same policy while the physical session is idle: VRCamera
+        // still renders the desktop view then. Gating on stereoEnabled left
+        // that view on VHVR's old TAA, whose jitter is applied after rendering.
+        // Use the native spatial AA shader with the existing color operators.
+        var settings = profile.antialiasing.settings;
+        if (settings.method != UnityEngine.PostProcessing.AntialiasingModel.Method.Fxaa)
+        {
+            settings.method = UnityEngine.PostProcessing.AntialiasingModel.Method.Fxaa;
+            profile.antialiasing.settings = settings;
+        }
+    }
+    static void InitializeWorldColor(Camera to)
+    {
+        // CopyCamera explicitly disables HDR. Correct it before the camera is
+        // enabled, rather than changing its render target on the first cull.
+        if (to && to.name == "VRCamera" && !SinglePassRenderer.Active)
+            to.allowHDR = true;
     }
     static void PreserveUnderwaterResources(Component __instance, GameObject ___underwaterLightBlocker)
     {

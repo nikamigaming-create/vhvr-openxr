@@ -13,7 +13,13 @@ function Inside([string]$root,[string]$relative) {
 }
 foreach($file in $manifest.files) {
     $source=Inside $payload $file.path
-    if(!(Test-Path -LiteralPath $source) -or (Get-FileHash -LiteralPath $source).Hash -ne $file.sha256){throw "OpenXR payload verification failed: $($file.path)"}
+    if(!(Test-Path -LiteralPath $source -PathType Leaf)) {
+        throw "OpenXR payload file is missing: $($file.path). Extract the complete Nikami OpenXR pack and reinstall."
+    }
+    $actualHash=(Get-FileHash -LiteralPath $source).Hash
+    if($actualHash -ne $file.sha256) {
+        throw "OpenXR payload checksum mismatch: $($file.path). Expected $($file.sha256); found $actualHash. The openxr folder and openxr-manifest.json must come from the same build. Extract the complete Nikami OpenXR pack and reinstall."
+    }
 }
 $changed=@($manifest.files | Where-Object {
     $target=Inside $game $_.path

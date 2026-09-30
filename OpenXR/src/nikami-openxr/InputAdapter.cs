@@ -23,6 +23,34 @@ internal static class InputAdapter
         internal int Hand;
         internal float Press = .55f, Release = .45f;
         internal bool Held;
+        // Resolve the binding grammar once while importing the upstream JSON.
+        // The action bridge is queried dozens of times per frame; parsing the
+        // source path and component on every query was needlessly expensive.
+        internal PathKind PathType;
+        internal ButtonKind ButtonType;
+        internal DpadKind Dpad;
+        internal string RawControl, RawAlias;
+    }
+
+    enum PathKind : byte { Other, Joystick, Trigger, Grip }
+    enum ButtonKind : byte
+    {
+        Raw, Axis, PrimaryButton, PrimaryTouch, SecondaryButton, SecondaryTouch,
+        ThumbstickClick, ThumbstickTouch, TriggerTouch, Menu, Dpad
+    }
+    enum DpadKind : byte { None, North, South, East, West, Center }
+
+    sealed class ControllerSnapshot
+    {
+        internal int Frame = -1;
+        internal bool Available;
+        internal Vector2 Joystick;
+        internal float Trigger, Grip;
+        internal bool PrimaryButton, PrimaryTouch, SecondaryButton, SecondaryTouch;
+        internal bool ThumbstickClick, ThumbstickTouch, TriggerTouch, Menu;
+        internal Vector3 Position, Velocity, AngularVelocity;
+        internal Quaternion Rotation = Quaternion.identity;
+        internal bool Tracked;
     }
     sealed class Chord
     {
@@ -54,12 +82,15 @@ internal static class InputAdapter
     static readonly List<Binding> AllBindings = new();
     static readonly Dictionary<Binding, int> ActivePriorities = new();
     static readonly Dictionary<string, int> ControlPriorities = new(StringComparer.OrdinalIgnoreCase);
+    static VRActiveActionSet_t[] cachedActionSets;
     static readonly Dictionary<(ulong, ulong), Sample> Samples = new();
     static readonly Dictionary<ulong, PoseSample> PoseSamples = new();
+    static readonly ControllerSnapshot[] Snapshots = { new(), new(), new(), new() };
     static readonly HashSet<string> Warned = new();
     static readonly XRDevice[] Devices = new XRDevice[4];
     static readonly Dictionary<XRDevice, Dictionary<string, InputControl>> Controls = new();
     static bool devicesResolved;
+    static int snapshotFrame = -1;
     static ulong nextHandle = 100;
     internal static void Install(Harmony harmony)
     {
@@ -91,6 +122,8 @@ internal static class InputAdapter
         Controls.Clear();
         foreach (var sample in Samples.Values) sample.Frame = -1;
         PoseSamples.Clear();
+        snapshotFrame = -1;
+        foreach (var snapshot in Snapshots) snapshot.Frame = -1;
     }
     internal static void LoadBindings()
     {
@@ -127,14 +160,67 @@ internal static class InputAdapter
         binding.Hand = path.Contains("/left/") ? 1 : path.Contains("/right/") ? 2 : 3;
         binding.Press = (float?)parameters?["click_activate_threshold"] ?? binding.Press;
         binding.Release = (float?)parameters?["click_deactivate_threshold"] ?? binding.Release;
+        var pathName = path.Substring(path.LastIndexOf('/') + 1).ToLowerInvariant();
+        binding.PathType = pathName switch {
+            "joystick" => PathKind.Joystick,
+            "trigger" => PathKind.Trigger,
+            "grip" => PathKind.Grip,
+            _ => PathKind.Other
+        };
+        if (binding.PathType == PathKind.Joystick && mode == "dpad")
+        {
+            binding.ButtonType = ButtonKind.Dpad;
+            binding.Dpad = component switch {
+                "north" => DpadKind.North, "south" => DpadKind.South,
+                "east" => DpadKind.East, "west" => DpadKind.West,
+                "center" => DpadKind.Center, _ => DpadKind.None
+            };
+        }
+        else if ((binding.PathType == PathKind.Trigger || binding.PathType == PathKind.Grip)
+            && !component.Equals("touch", StringComparison.OrdinalIgnoreCase))
+            binding.ButtonType = ButtonKind.Axis;
+        else
+        {
+            string name = pathName switch {
+                "a" or "x" => component == "touch" ? "primaryTouched" : "primaryButton",
+                "b" or "y" => component == "touch" ? "secondaryTouched" : "secondaryButton",
+                "joystick" => component == "touch" ? "thumbstickTouched" : "thumbstickClicked",
+                "trigger" => "triggerTouched",
+                "application_menu" or "menu" => "menu",
+                _ => pathName
+            };
+            string alias = name switch {
+                "thumbstickClicked" => "primary2DAxisClick",
+                "thumbstickTouched" => "primary2DAxisTouch",
+                "triggerTouched" => "triggerTouch",
+                "primaryTouched" => "primaryTouch",
+                "secondaryTouched" => "secondaryTouch",
+                _ => name
+            };
+            binding.ButtonType = name switch {
+                "primaryButton" => ButtonKind.PrimaryButton,
+                "primaryTouched" => ButtonKind.PrimaryTouch,
+                "secondaryButton" => ButtonKind.SecondaryButton,
+                "secondaryTouched" => ButtonKind.SecondaryTouch,
+                "thumbstickClicked" => ButtonKind.ThumbstickClick,
+                "thumbstickTouched" => ButtonKind.ThumbstickTouch,
+                "triggerTouched" => ButtonKind.TriggerTouch,
+                "menu" => ButtonKind.Menu,
+                _ => ButtonKind.Raw
+            };
+            binding.RawControl = name;
+            binding.RawAlias = alias;
+        }
         AllBindings.Add(binding);
         return binding;
     }
     static void UpdateActionSets(VRActiveActionSet_t[] sets)
     {
+        if (ActionSetsMatch(sets)) return;
         ActivePriorities.Clear();
         ControlPriorities.Clear();
-        foreach (var set in sets)
+        cachedActionSets = sets == null || sets.Length == 0 ? Array.Empty<VRActiveActionSet_t>() : (VRActiveActionSet_t[])sets.Clone();
+        foreach (var set in sets ?? Array.Empty<VRActiveActionSet_t>())
         {
             if (!Paths.TryGetValue(set.ulActionSet, out var path)) continue;
             foreach (var binding in AllBindings)
@@ -147,6 +233,23 @@ internal static class InputAdapter
                     ControlPriorities[binding.Path] = set.nPriority;
             }
         }
+    }
+
+    static bool ActionSetsMatch(VRActiveActionSet_t[] sets)
+    {
+        int count = sets?.Length ?? 0;
+        if (cachedActionSets == null || cachedActionSets.Length != count) return false;
+        for (int i = 0; i < count; i++)
+        {
+            var current = sets[i];
+            var cached = cachedActionSets[i];
+            if (current.ulActionSet != cached.ulActionSet ||
+                current.ulRestrictedToDevice != cached.ulRestrictedToDevice ||
+                current.ulSecondaryActionSet != cached.ulSecondaryActionSet ||
+                current.nPriority != cached.nPriority)
+                return false;
+        }
+        return true;
     }
     static bool BindingActive(Binding binding)
     {
@@ -202,39 +305,99 @@ internal static class InputAdapter
     }
     static Vector2 ReadAxis(Binding b)
     {
-        var d = Device(b.Hand);
-        if (b.Path.EndsWith("joystick")) return (Control<Vector2Control>(d, "thumbstick") ?? Control<Vector2Control>(d, "primary2DAxis"))?.ReadValue() ?? Vector2.zero;
-        if (b.Path.EndsWith("trigger")) return new Vector2(Control<AxisControl>(d, "trigger")?.ReadValue() ?? 0, 0);
-        if (b.Path.EndsWith("grip")) return new Vector2(Control<AxisControl>(d, "grip")?.ReadValue() ?? 0, 0);
+        var snapshot = Snapshot(b.Hand);
+        if (b.PathType == PathKind.Joystick) return snapshot.Joystick;
+        if (b.PathType == PathKind.Trigger) return new Vector2(snapshot.Trigger, 0);
+        if (b.PathType == PathKind.Grip) return new Vector2(snapshot.Grip, 0);
         return Vector2.zero;
     }
     static bool ReadButton(Binding b)
     {
-        var d = Device(b.Hand);
-        if (d == null) return b.Held = false;
-        var path = b.Path.Substring(b.Path.LastIndexOf('/') + 1);
+        var snapshot = Snapshot(b.Hand);
+        if (!snapshot.Available) return b.Held = false;
         float value;
-        if (path == "joystick" && b.Mode == "dpad")
+        if (b.ButtonType == ButtonKind.Dpad)
         {
             var axis = ReadAxis(b);
-            value = b.Component switch { "north" => axis.y, "south" => -axis.y, "east" => axis.x, "west" => -axis.x, "center" => axis.magnitude < .25f ? 1 : 0, _ => 0 };
+            value = b.Dpad switch {
+                DpadKind.North => axis.y, DpadKind.South => -axis.y,
+                DpadKind.East => axis.x, DpadKind.West => -axis.x,
+                DpadKind.Center => axis.magnitude < .25f ? 1 : 0, _ => 0
+            };
         }
-        else if ((path == "trigger" || path == "grip") && b.Component != "touch") value = ReadAxis(b).x;
+        else if (b.ButtonType == ButtonKind.Axis) value = ReadAxis(b).x;
         else
         {
-            string name = path switch {
-                "a" or "x" => b.Component == "touch" ? "primaryTouched" : "primaryButton",
-                "b" or "y" => b.Component == "touch" ? "secondaryTouched" : "secondaryButton",
-                "joystick" => b.Component == "touch" ? "thumbstickTouched" : "thumbstickClicked",
-                "trigger" => "triggerTouched", "application_menu" or "menu" => "menu", _ => path
+            value = b.ButtonType switch {
+                ButtonKind.PrimaryButton => snapshot.PrimaryButton ? 1 : 0,
+                ButtonKind.PrimaryTouch => snapshot.PrimaryTouch ? 1 : 0,
+                ButtonKind.SecondaryButton => snapshot.SecondaryButton ? 1 : 0,
+                ButtonKind.SecondaryTouch => snapshot.SecondaryTouch ? 1 : 0,
+                ButtonKind.ThumbstickClick => snapshot.ThumbstickClick ? 1 : 0,
+                ButtonKind.ThumbstickTouch => snapshot.ThumbstickTouch ? 1 : 0,
+                ButtonKind.TriggerTouch => snapshot.TriggerTouch ? 1 : 0,
+                ButtonKind.Menu => snapshot.Menu ? 1 : 0,
+                ButtonKind.Raw => (Control<ButtonControl>(Device(b.Hand), b.RawControl)
+                    ?? Control<ButtonControl>(Device(b.Hand), b.RawAlias))?.ReadValue() ?? 0,
+                _ => 0
             };
-            string alias = name switch {
-                "thumbstickClicked" => "primary2DAxisClick", "thumbstickTouched" => "primary2DAxisTouch",
-                "triggerTouched" => "triggerTouch", "primaryTouched" => "primaryTouch", "secondaryTouched" => "secondaryTouch", _ => name
-            };
-            value = (Control<ButtonControl>(d, name) ?? Control<ButtonControl>(d, alias))?.ReadValue() ?? 0;
         }
         return b.Held = value >= (b.Held ? b.Release : b.Press);
+    }
+
+    static ControllerSnapshot Snapshot(int hand)
+    {
+        if (hand < 1 || hand > 3) return Snapshots[0];
+        RefreshSnapshots();
+        return Snapshots[hand];
+    }
+
+    static void RefreshSnapshots()
+    {
+        int frame = Time.frameCount;
+        if (snapshotFrame == frame) return;
+        snapshotFrame = frame;
+        for (int hand = 1; hand <= 3; hand++)
+        {
+            var snapshot = Snapshots[hand];
+            snapshot.Frame = frame;
+            var device = Device(hand);
+            snapshot.Available = device != null;
+            snapshot.Joystick = Vector2.zero;
+            snapshot.Trigger = snapshot.Grip = 0;
+            snapshot.PrimaryButton = snapshot.PrimaryTouch = false;
+            snapshot.SecondaryButton = snapshot.SecondaryTouch = false;
+            snapshot.ThumbstickClick = snapshot.ThumbstickTouch = false;
+            snapshot.TriggerTouch = snapshot.Menu = false;
+            snapshot.Position = Vector3.zero;
+            snapshot.Rotation = Quaternion.identity;
+            snapshot.Velocity = snapshot.AngularVelocity = Vector3.zero;
+            snapshot.Tracked = false;
+            if (device == null) continue;
+            snapshot.Joystick = (Control<Vector2Control>(device, "thumbstick")
+                ?? Control<Vector2Control>(device, "primary2DAxis"))?.ReadValue() ?? Vector2.zero;
+            snapshot.Trigger = Control<AxisControl>(device, "trigger")?.ReadValue() ?? 0;
+            snapshot.Grip = Control<AxisControl>(device, "grip")?.ReadValue() ?? 0;
+            snapshot.PrimaryButton = Control<ButtonControl>(device, "primaryButton")?.isPressed ?? false;
+            snapshot.PrimaryTouch = (Control<ButtonControl>(device, "primaryTouched")
+                ?? Control<ButtonControl>(device, "primaryTouch"))?.isPressed ?? false;
+            snapshot.SecondaryButton = (Control<ButtonControl>(device, "secondaryButton")
+                ?? Control<ButtonControl>(device, "secondaryButton"))?.isPressed ?? false;
+            snapshot.SecondaryTouch = (Control<ButtonControl>(device, "secondaryTouched")
+                ?? Control<ButtonControl>(device, "secondaryTouch"))?.isPressed ?? false;
+            snapshot.ThumbstickClick = (Control<ButtonControl>(device, "thumbstickClicked")
+                ?? Control<ButtonControl>(device, "primary2DAxisClick"))?.isPressed ?? false;
+            snapshot.ThumbstickTouch = (Control<ButtonControl>(device, "thumbstickTouched")
+                ?? Control<ButtonControl>(device, "primary2DAxisTouch"))?.isPressed ?? false;
+            snapshot.TriggerTouch = (Control<ButtonControl>(device, "triggerTouched")
+                ?? Control<ButtonControl>(device, "triggerTouch"))?.isPressed ?? false;
+            snapshot.Menu = Control<ButtonControl>(device, "menu")?.isPressed ?? false;
+            snapshot.Position = Control<Vector3Control>(device, "devicePosition")?.ReadValue() ?? Vector3.zero;
+            snapshot.Rotation = Control<QuaternionControl>(device, "deviceRotation")?.ReadValue() ?? Quaternion.identity;
+            snapshot.Velocity = Control<Vector3Control>(device, "deviceVelocity")?.ReadValue() ?? Vector3.zero;
+            snapshot.AngularVelocity = Control<Vector3Control>(device, "deviceAngularVelocity")?.ReadValue() ?? Vector3.zero;
+            snapshot.Tracked = Control<ButtonControl>(device, "isTracked")?.isPressed ?? false;
+        }
     }
     static Sample GetSample(ulong action, ulong source)
     {
@@ -287,6 +450,7 @@ internal static class InputAdapter
     }
     static InputPoseActionData_t Pose(ulong action, ulong source)
     {
+        RefreshSnapshots();
         int hand = (int)source;
         // SteamVR pose actions commonly request unrestricted action data
         // (ulRestrictToDevice == 0) and select the hand from the action path.
@@ -298,9 +462,10 @@ internal static class InputAdapter
                    actionPath.EndsWith("/poser", StringComparison.OrdinalIgnoreCase) ? 2 :
                    actionPath.EndsWith("/bodypose", StringComparison.OrdinalIgnoreCase) ? 3 : 0;
         }
+        var snapshot = hand >= 1 && hand <= 3 ? Snapshots[hand] : Snapshots[0];
         var device = hand >= 1 && hand <= 3 ? Device(hand) : null;
-        var position = Control<Vector3Control>(device, "devicePosition")?.ReadValue() ?? Vector3.zero;
-        bool tracked = Control<ButtonControl>(device, "isTracked")?.isPressed ?? false;
+        var position = snapshot.Position;
+        bool tracked = snapshot.Tracked;
         // Meta XR Simulator publishes a valid pose before it raises the
         // optional isTracked button.  A non-zero controller pose is still a
         // real tracked sample; accepting it keeps the SteamVR action's
@@ -310,8 +475,8 @@ internal static class InputAdapter
             OpenXRPlugin.Log.LogInfo($"OpenXR pose device action={action}, hand={hand}, position={position}, tracked={tracked}, valid={valid}");
         if (Warned.Add("pose-request-" + action))
             OpenXRPlugin.Log.LogInfo($"OpenXR pose request action={action}, source={source}, path={(ActionPaths.TryGetValue(action, out var p) ? p : "<unknown>")}, hand={hand}, device={(device == null ? "null" : device.name)}, position={position}, valid={valid}");
-        var rotation = Control<QuaternionControl>(device, "deviceRotation")?.ReadValue() ?? Quaternion.identity;
-        var velocity = Control<Vector3Control>(device, "deviceVelocity")?.ReadValue() ?? Vector3.zero;
+        var rotation = snapshot.Rotation;
+        var velocity = snapshot.Velocity;
         // The Meta simulator updates the pose location but intentionally leaves
         // deviceVelocity at zero.  VHVR's native WeaponCollision reads the
         // SteamVR tracked-hand velocity (rather than differentiating the
@@ -338,7 +503,7 @@ internal static class InputAdapter
         }
         if (velocity.sqrMagnitude > .0001f && Warned.Add("pose-velocity-" + hand))
             OpenXRPlugin.Log.LogInfo($"OpenXR pose velocity hand={hand}, velocity={velocity}, frame={Time.frameCount}");
-        var angular = Control<Vector3Control>(device, "deviceAngularVelocity")?.ReadValue() ?? Vector3.zero;
+        var angular = snapshot.AngularVelocity;
         var matrix = new SteamVR_Utils.RigidTransform(position, rotation).ToHmdMatrix34();
         // For unrestricted pose requests the runtime passes source=0 while
         // the action path identifies the hand.  SteamVR_Action_Pose uses
