@@ -1,6 +1,8 @@
-# VHVR OpenXR v0.1.0 release candidate
+# VHVR OpenXR v0.1.0 preview
 
 One Valheim VR fork package containing current VHVR and its OpenXR additions: rebuilt gameplay and controller assemblies, matching bindings and upstream asset bundles, and VR runtime dependencies. Install BepInEx separately. The Nikami gameplay mod and illustrated launcher are excluded.
+
+[Download the public prerelease](https://github.com/nikamigaming-create/vhvr-openxr/releases/tag/openxr-v0.1.0). This preview is available for community testing. The final physical headset playtest is pending; simulator validation does not establish headset feel, comfort, haptics or full-resolution performance.
 
 ## Version and upstream
 
