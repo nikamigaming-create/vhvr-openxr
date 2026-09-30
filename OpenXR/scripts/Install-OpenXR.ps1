@@ -14,26 +14,42 @@ function Inside([string]$root,[string]$relative) {
 foreach($file in $manifest.files) {
     $source=Inside $payload $file.path
     if(!(Test-Path -LiteralPath $source -PathType Leaf)) {
-        throw "OpenXR payload file is missing: $($file.path). Extract the complete Nikami OpenXR pack and reinstall."
+        throw "OpenXR payload file is missing: $($file.path). Extract the complete VHVR OpenXR package and reinstall."
     }
     $actualHash=(Get-FileHash -LiteralPath $source).Hash
     if($actualHash -ne $file.sha256) {
-        throw "OpenXR payload checksum mismatch: $($file.path). Expected $($file.sha256); found $actualHash. The openxr folder and openxr-manifest.json must come from the same build. Extract the complete Nikami OpenXR pack and reinstall."
+        throw "OpenXR payload checksum mismatch: $($file.path). Expected $($file.sha256); found $actualHash. The openxr folder and openxr-manifest.json must come from the same build. Extract the complete VHVR OpenXR package and reinstall."
     }
 }
+if (!(Test-Path -LiteralPath (Join-Path $game 'valheim.exe'))) { throw 'Choose the installed Valheim game folder.' }
+if (!(Test-Path -LiteralPath (Join-Path $game 'BepInEx/core/BepInEx.dll'))) { throw 'Install BepInExPack Valheim before this VR package.' }
 $changed=@($manifest.files | Where-Object {
     $target=Inside $game $_.path
     !(Test-Path -LiteralPath $target) -or (Get-FileHash -LiteralPath $target).Hash -ne $_.sha256
 })
+function SaveManifest {
+    foreach ($name in @('nikami-openxr.json','openxr-manifest.json')) {
+        $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $game $name) -Encoding UTF8
+    }
+}
 if(!$changed.Count){
     # A manually updated payload may already match while its receipt is absent
     # or still uses an older schema. Publish the manifest we just verified.
-    $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $game 'nikami-openxr.json') -Encoding UTF8
-    Write-Host 'Nikami native OpenXR is current.'
+    SaveManifest
+    Write-Host 'VHVR OpenXR is current.'
     return
 }
 $backup=Join-Path (Split-Path $game -Parent) ('Nikami-Backups\OpenXR\'+(Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
 $existed=@{}
+$metadataExisted=@{}
+foreach ($name in @('nikami-openxr.json','openxr-manifest.json')) {
+    $target=Join-Path $game $name
+    $metadataExisted[$name]=Test-Path -LiteralPath $target
+    if ($metadataExisted[$name]) {
+        New-Item -ItemType Directory -Path $backup -Force | Out-Null
+        Copy-Item -LiteralPath $target -Destination (Join-Path $backup $name)
+    }
+}
 foreach($file in $changed) {
     $target=Inside $game $file.path
     $existed[$file.path]=Test-Path -LiteralPath $target
@@ -51,13 +67,18 @@ try {
         Copy-Item -LiteralPath (Inside $payload $file.path) -Destination $target -Force
         if((Get-FileHash -LiteralPath $target).Hash -ne $file.sha256){throw 'OpenXR installation verification failed.'}
     }
-    $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $game 'nikami-openxr.json') -Encoding UTF8
-    Write-Host 'Installed Nikami native OpenXR. Uses your active OpenXR runtime.'
+    SaveManifest
+    Write-Host 'Installed VHVR OpenXR. Uses your active OpenXR runtime.'
 } catch {
     foreach($file in $changed) {
         $target=Inside $game $file.path
         if($existed[$file.path]) { Copy-Item -LiteralPath (Inside $backup $file.path) -Destination $target -Force }
         elseif(Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target }
+    }
+    foreach ($name in $metadataExisted.Keys) {
+        $target=Join-Path $game $name
+        if ($metadataExisted[$name]) { Copy-Item -LiteralPath (Join-Path $backup $name) -Destination $target -Force }
+        elseif (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target }
     }
     throw
 }

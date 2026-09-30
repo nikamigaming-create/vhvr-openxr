@@ -180,10 +180,10 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
     void Update()
     {
         if (!Ready) return;
-        // SteamVR_Behaviour already updates non-visual actions in its configured
-        // OnUpdate phase. Calling it here as well duplicates the full action-set
-        // walk every frame; leave that phase to the upstream scheduler and only
-        // publish poses early enough for VHVR's hand/weapon update.
+        // Update controller actions before game/UI code asks for them. The
+        // upstream behaviour may update again in its own phase, but its phase
+        // can run after Valheim has already sampled this frame's inputs.
+        SteamVR_Input.UpdateNonVisualActions();
         SteamVR_Input.UpdatePoseActions();
         if (SessionStarted)
         {

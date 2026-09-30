@@ -1,27 +1,31 @@
 # VHVR OpenXR v0.1.0 release candidate validation
 
-Checked September 29, 2026 with an isolated owned Valheim 1.0.16 installation, official VHVR v0.10.5, Unity OpenXR 1.16.1 and Meta XR Simulator v207. The Nikami gameplay DLL was absent. Private QA helpers and all game data are excluded from the downloadable package.
+Validated September 29, 2026 with owned Valheim 1.0.16, Unity OpenXR 1.16.1 and Meta XR Simulator v207. The complete current fork package was installed in an isolated game fixture. Nikami gameplay was absent; the private acceptance plugin and test world are excluded from the package.
 
-The adapter is the retained tested binary, SHA-256 E57B71754B70D55F9DEFF95EF5204F9E054486E187E1761EEF59EF5D61A022DB. Its 19 retained C# source files match SOURCE-PROVENANCE.json. The portable source project also compiled successfully against an owned installation. The rebuilt binary is not substituted for the retained binary.
+Upstream revision: 7fa70ef129a1f022365ebdc1e4ffdf1ff8836802.
+ValheimVRMod.dll SHA256: F8C2C0A4279F8F43FAA3DBF0BB4BBAB93EBCF815780AE2C10707318F1CC21C62.
+OpenXR adapter SHA256: BD506ADC0819F13FC65C9F80F220D1E9F34337FE84525B34460BB5BD57288186.
+The matching controller assemblies, actions and tracked upstream bundles were tested with these DLLs. The manifest covers all 118 runtime files.
 
 | Gate | Result |
 |---|---|
-| Native articulated hands | Passed all 30 native finger joint transitions, independent thumb/index gestures, opening after release and contact curl. Both-eye open/closed images reviewed. |
-| Solid hands and held weapons | Passed a 1.2 m sweep against a 5 mm wall, tangential sliding, wrist rotation and opposing equipment contact. Hands and long weapons retained contact under eight seconds of pressure. |
-| Escape from blocked contact | Passed 768 corner pull/rotation poses, immediate withdrawal/reconnection and release of an item that leaves avatar reach. The normal contact limit is 8 cm or 20 degrees of tracking separation. Contact has no fixed timeout. |
-| Native world surfaces | Passed 42 fence/post/bed/chest paths and 3,024 rubbing/rotation poses. |
-| Loose item grab/lift/throw | Passed normal controller acquisition of the original native networked dynamic body, a 30 cm lift, inventory pickup protection and preservation of native release momentum. |
-| Gravity and settling | Held drift 1.5 mm over 2.34 seconds of sampled observation. After release the same body fell 1.645 m, reached a downward speed of 5.873 m/s and settled to zero speed. Release samples span 7.86 seconds. Native gravity and constraints stayed intact. A disabled-gravity, non-falling case is rejected. |
-| Creature grip | Passed original live grayling grip, free-hand native damage and release. Live neck/boar eligibility passed; players, high-level or oversized creatures were rejected. |
-| Input and recovery | Passed 1,536 simulated input frames, 613 observed grip transitions and 12 focus/tracking recoveries across male/female avatars and equipment. Tracking loss, inventory, separation, ownership loss, component disable, focus loss, equipping and death released held bodies and restored their settings. |
-| Functional suite | 319 PASS assertions, zero FAIL assertions in the final full functional run. |
-| Focused weapon compositor check | Passed both distinct nonblank final eyes after compositor capture warmed up. Weapon meshes, hands and contact geometry were reviewed in both eyes. Negative fixtures reject a missing eye, black images, UI-only images and duplicated eyes. |
-| Physical headset contact feel, comfort, haptics and frame pacing | Pending the human headset playtest. Simulator results do not certify these. |
+| Startup and tracked rig | Passed current gameplay/controller builds, active stereo and anatomical wrist/palm alignment. Both measured wrist/target and palm/controller gaps were below recorded 0.1 mm precision in the neutral test. |
+| Articulated hands | All 30 native finger joints, independent thumb/index gestures, reopen and contact curl passed. Both final eyes for open and closed hands reviewed. |
+| Solid hands and held weapons | Passed 1.2 m sweep against a 5 mm wall, sliding, wrist rotation and opposing equipment contact. Hands and long weapons kept contact during eight seconds of pressure; rotation/peer checks sustained five seconds. |
+| Escape from contact | Passed 768 corner pull/rotation poses, immediate withdrawal/reconnection and avatar-reach release. Normal contact yields at 8 cm or 20 degrees of tracking separation, with no timed contact expiry. Native stick movement escaped a held pole without leaving an environment locomotion latch. |
+| Native surfaces | 42 fence/post/bed/chest paths, 3024 rubbing/rotation poses and 2659 contacts passed. |
+| Loose-item grabbing | Normal controller grip acquired the original native networked dynamic body. Lift, rotation, inventory pickup protection, release and native momentum preservation passed. |
+| Gravity | Held drift 0.1 mm over 2.36 seconds of sampled observation. Release fell 1.626 m, minimum vertical velocity -5.517 m/s, final speed zero. Release samples span 7.74 seconds. Native gravity/constraints remained intact; a disabled-gravity/non-falling fixture was rejected. |
+| Creature restraint | Live grayling hold, free-hand native damage and release passed. Live neck/boar eligibility passed. Players, high-level and oversized creatures were rejected. |
+| Input and recovery | 1536 simulator input frames, 1083 grip transitions, 12 focus/tracking recoveries across male/female and native padded armor passed. Tracking loss, inventory, separation, ownership, disable, focus, equip and death released bodies and restored settings. |
+| Weapon final eyes | Distinct nonblank compositor eyes passed; both native axe meshes, hands, forearms and contact geometry reviewed. Contact volumes matched rendered equipment. Negative fixtures reject missing, black, UI-only and duplicate eyes. |
+| Full functional suite | 320 PASS assertions, zero FAIL assertions in run-08-nightly. No runtime exceptions in this completed run. |
+| Physical headset feel, comfort, haptics and frame pacing | Pending the user's final headset playtest. Simulator coverage cannot establish these. |
 
-Temporal visual review covers all 48 paired compositor samples of the held/released item, using recorded sample times. The images show the held item and its fall out of the lower view; the final ground-rest claim comes from native body telemetry. This is sampled eye evidence, not a continuous full-frame-rate recording.
+All 48 paired gravity compositor samples were reviewed with measured sample times. The item falls out of the lower view; its ground settling is established by native body telemetry. The review video uses the measured sample durations and is not a continuous full-frame-rate recording.
 
-Earlier private attempts are retained for audit: one launch used a removed simulator runtime; one creature fixture incorrectly queried an uninitialized catalog prefab; one screenshot pair was captured before asynchronous compositor capture resumed. These are not counted as successful checks. No adapter runtime code was changed to repair those QA setup/capture issues.
+The first current-upstream candidate exposed a startup null reference in an unused walking indicator. The fork now guards its absent LineRenderer. Two following attempts exposed missing SteamVR Unity package build symbols, which prevented the native head-pose driver from being installed and placed hands beyond arm reach. The build wrapper now matches upstream SteamVR.asmdef's OPENVR_XR_API and UNITY_LEGACY_INPUT_HELPERS definitions. No offset was added to conceal the transform error. Those failed candidates are not the shipped DLLs.
 
-Physics scope is the hands, their held equipment and gripped loose items/eligible creatures. The hands and held weapons use swept native collision constraints; loose held items use native rigid bodies and finite spring forces. The player's existing movement/capsule collision is retained. Strong tracking separation permits escape and may allow temporary penetration; the physical playtest must judge that tradeoff.
+Earlier checks against official v0.10.5 and the retained E57 adapter are baseline evidence only. Current upstream has been rebuilt and separately validated in the successful run above.
 
-The dependency is the latest published VHVR release, v0.10.5. Fork source is synchronized with upstream master 3ccd2a3c81cacb4208e8a2b0a7536ac4be09eccb, but the companion has not been validated against a rebuilt unreleased master gameplay DLL. Broad multiplayer and every weapon combination remain unproven.
+Physics covers hands, held weapons, gripped loose objects and eligible creatures. Hands and held weapons use swept native constraints; loose held objects use their native rigid bodies and finite spring forces. Player movement collision is retained. Strong tracking separation allows escape and can allow temporary penetration; the physical playtest must judge that feel. Broad multiplayer and every weapon combination remain unproven.

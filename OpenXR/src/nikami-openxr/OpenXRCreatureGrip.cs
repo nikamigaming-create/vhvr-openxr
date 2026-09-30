@@ -23,8 +23,8 @@ internal sealed class OpenXRCreatureGrip : MonoBehaviour
             || target.IsSwimming() || target.HaveRider()) return false;
         var capsule = target.GetComponent<CapsuleCollider>();
         float height = capsule ? capsule.height * Mathf.Abs(capsule.transform.lossyScale.y) : 3;
-        // Mass, level and reach matter. This admits a grayling and excludes a
-        // troll even if a content mod gives the troll an unusually light body.
+        // Allow small creatures up to the player's own mass (including boars).
+        // Level increases resistance; height also excludes a light modded troll.
         return height <= 2.1f && target.GetMass() * Mathf.Max(1, target.GetLevel()) <= player.GetMass();
     }
     internal static void Repel(Player player, Character target, OpenXRPhysicalHands.HandState hand)

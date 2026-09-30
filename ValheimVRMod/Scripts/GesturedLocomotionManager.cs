@@ -593,7 +593,10 @@ namespace ValheimVRMod.Scripts
                 {
                     if (!ENABLE_DEBUG_WALK_RUN_INDICATOR)
                     {
-                        lineRenderer.enabled = false;
+                        if (lineRenderer != null)
+                        {
+                            lineRenderer.enabled = false;
+                        }
                         return;
                     }
 

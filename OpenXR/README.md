@@ -1,63 +1,69 @@
-# VHVR OpenXR v0.1.0
+# VHVR OpenXR v0.1.0 release candidate
 
-OpenXR runtime and interaction additions for Valheim VR. This download contains the XR companion and its required Unity OpenXR runtime files. Install official VHVR and BepInEx separately. The Nikami gameplay mod and illustrated launcher are not included.
+One Valheim VR fork package containing current VHVR and its OpenXR additions: rebuilt gameplay and controller assemblies, matching bindings and upstream asset bundles, and VR runtime dependencies. Install BepInEx separately. The Nikami gameplay mod and illustrated launcher are excluded.
+
+## Version and upstream
+
+This candidate contains upstream master through [7fa70ef129a1f022365ebdc1e4ffdf1ff8836802](https://github.com/brandonmousseau/vhvr-mod/commit/7fa70ef129a1f022365ebdc1e4ffdf1ff8836802), checked September 29, 2026 Pacific time. It includes the screenshot, mirror, main-menu visibility and two-handed secondary attack changes available at that check. The rebuilt DLL retains upstream's internal 0.10.5 version string; the package manifest records its exact source revision and every runtime file's SHA-256.
+
+Our current local OpenXR input fixes are included: live controller reads and nonvisual action updates before the game/UI sample them. A small fork correction guards the disabled upstream debug walking indicator against an uninitialized LineRenderer during startup, fixing the exception caught by this candidate's first game run. SOURCE-PROVENANCE.json records the correction and 19 adapter source files.
+
+Unchanged VR dependencies come from the official [VHVR v0.10.5 archive](https://github.com/brandonmousseau/vhvr-mod/releases/tag/v0.10.5). Gameplay, controller assemblies, actions and tracked bundles are replaced with the current fork build. Users do not need a separate VHVR installation.
 
 ## Requirements
 
 - Windows Valheim 1.0.16 (Unity 6000.0.75f1).
-- BepInExPack Valheim already installed.
-- Official VHVR v0.10.5 already installed: https://github.com/brandonmousseau/vhvr-mod/releases/tag/v0.10.5
-- A working PC OpenXR runtime and tracked controllers. Meta Quest Link is the runtime for a Quest using USB Link or Air Link. Touch controller bindings have simulator validation.
+- BepInExPack Valheim installed in the game folder.
+- A working PC OpenXR runtime and tracked controllers. Quest Link/Air Link uses the Meta Link PC runtime. Touch bindings have simulator validation.
 
-VHVR v0.10.5 is the latest official published release checked on September 29, 2026. The fork source is synchronized with upstream master at 3ccd2a3c81cacb4208e8a2b0a7536ac4be09eccb. This companion binary is tested against the published v0.10.5 gameplay DLL, not a rebuilt unreleased master DLL. New upstream source revisions must be validated with their matching actions and assets before replacing that dependency.
+## Included OpenXR features
 
-## Included XR additions
+- Native Unity OpenXR rendering and controller input, retaining VHVR locomotion, combat, building and VR menus. OpenXR mode bypasses SteamVR's compositor.
+- Controller-driven native finger articulation: fists, open hands, independent thumb/index gestures and contact curl. Optical controller-free hand tracking is not implemented.
+- Solid hands and held-weapon contact with native surfaces, sustained pressure, sliding, wrist rotation and feedback.
+- Physical grab, lift, rotation, drop and throwing of original loose items. Native networked dynamic bodies are held by finite spring forces. Gravity stays enabled; compensation ends at release and native momentum is preserved with safety limits.
+- Eligible small-creature restraint with native AI/damage retained, up to eight seconds and eight stamina per second.
+- Scene/input priority fixes, stereo occlusion and FXAA corrections, and guarded display-session recovery.
 
-- Native Unity OpenXR headset rendering and controller input; SteamVR's compositor is bypassed in OpenXR mode. VHVR retains its rig, locomotion, combat, building and VR menus.
-- Controller-driven native finger articulation, including independent thumbs-up and index pointing, open hands, fists and contact-constrained fingers. This is controller input animation, not optical controller-free hand tracking.
-- Solid hand and equipment contact with native surfaces, sustained pressure and sliding, bounded release when tracking moves too far, and equipment contact feedback.
-- Physical grip, lift, rotation, drop and throwing of original loose items. Held objects remain native networked dynamic rigid bodies. Finite spring forces hold them; gravity compensation stops at release and native momentum is preserved with safety limits.
-- Bounded restraint of eligible small creatures with native AI and damage retained. Holds last up to eight seconds and consume eight stamina per second. Grip release, tracking/focus loss, death, excessive separation or lost ownership ends the hold.
-- Input priority and scene-transition fixes, native stereo occlusion/FXAA corrections, and a guarded display-session recovery path.
+Physics covers hands, held weapons, gripped loose items and eligible creatures. Hands/weapons use swept native collision constraints. More than 8 cm or 20 degrees of tracking separation from a blocked pose permits escape; contact reconnects after withdrawal. Normal hand/weapon contact has no timed expiry. Held objects release on grip release, tracking/focus loss, death, excessive separation or lost ownership. Normal player movement collision is retained.
 
-The existing Nikami.OpenXR.dll filename and plugin identifier are retained for compatibility. The separate Nikami gameplay DLL is not a dependency. Its optional integration stays inactive when that mod is absent.
+The Nikami.OpenXR.dll filename/plugin identifier is retained for compatibility; the separate Nikami gameplay DLL is not required. Upstream bHaptics support/patterns are included for compatible hardware.
 
 ## Install and launch
 
-1. Save and quit Valheim. Install the requirements above first.
-2. Keep this download's openxr folder and openxr-manifest.json together.
-3. From this extracted folder, run:
+1. Save and quit Valheim. Install BepInExPack Valheim first.
+2. Extract the complete package, keeping openxr and openxr-manifest.json together.
+3. From the extracted folder, run this command with your game directory:
 
        powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-OpenXR.ps1 -GameDirectory "D:\SteamLibrary\steamapps\common\Valheim"
 
-   Replace the directory with your own Valheim location. The installer checks all payload hashes, backs up replaced files and records the installed manifest. Manual installation is also possible: copy the contents of openxr into the Valheim folder.
-4. In Steam, set Valheim's launch options to:
+   The installer verifies hashes and backs up replaced files. Manual installation is possible by copying the contents of openxr into the game folder.
+4. Set Valheim's Steam launch options to:
 
        -ModEnabled=true -flatScreenMode=false
 
-5. Connect the headset through the PC's active OpenXR runtime, then start Valheim normally. Keep the desktop game window visible.
+5. Connect the headset through your active PC OpenXR runtime and start Valheim. Keep the desktop game window visible.
 
-Use -ModEnabled=false for desktop play. The optional -vrbackend=steamvr flag retains VHVR's original backend and bypasses this companion. Do not install a second copy of the companion under another plugin folder.
+Use -ModEnabled=false for desktop play. The optional -vrbackend=steamvr flag uses upstream's original backend. Remove duplicate ValheimVRMod.dll or Nikami.OpenXR.dll files in other plugin folders when updating.
 
-## Interaction controls
+## Grabbing controls
 
-With an empty hand, bring the palm close to a loose object, then press and hold grip (the Touch controller's side button) to hold it. Release grip to drop or throw. Acquisition requires a new grip press; release and press again if grip was already held before reaching the object. Physical grabbing does not add the object to inventory. Trigger, grip and capacitive thumb touch drive the finger poses.
+With an empty hand, bring the palm near a loose object, then press and hold grip (Touch side button). Release to drop or throw. Acquisition requires a new grip press; release and press again if already held before approaching. Physical grabbing leaves the item in the world. Trigger, grip and capacitive thumb touch drive finger poses.
 
-Creature restraint applies to eligible small ground creatures such as necks, boars and graylings, subject to their size, mass, level and ownership. Other players, bosses, flying or swimming creatures and ridden creatures cannot be held. Stronger creatures push the player back.
+Eligible small ground creatures include necks, boars and graylings, subject to size, mass, level and ownership. Players, bosses, flying/swimming or ridden creatures cannot be held. Stronger creatures push the player back.
 
 ## Validation and limits
 
-The shipped adapter is the unchanged tested build with SHA-256 E57B71754B70D55F9DEFF95EF5204F9E054486E187E1761EEF59EF5D61A022DB. Prior native simulator runs exercised both-eye rendering, articulated fingers, surface/weapon contact, dynamic item lifting/release, creature restraint and forced-release recovery. Fresh release verification is recorded in TESTED.txt.
+Read TESTED.txt for checks on these exact rebuilt DLLs. Earlier published-DLL tests are a baseline only. Physical headset feel, comfort, haptics and frame pacing await the final human playtest. Broad multiplayer and every weapon combination remain unproven.
 
-This is an experimental release. Simulator tests do not establish physical-headset comfort, tracking feel, haptics, physical frame pacing, all weapons or multiplayer coverage. Multipass/deferred rendering is used. Experimental single-pass shader caches, simulator software, QA/filming plugins, game data, saved worlds and Nikami gameplay/launcher files are excluded.
+Rendering uses multipass/deferred mode. Game binaries/data, BepInEx loader files, worlds, experimental single-pass caches, simulator/QA/filming plugins and Nikami gameplay/launcher files are excluded.
 
-## Source and notices
+## Source and build
 
-Corresponding companion source is in the separate VHVR-OpenXR-v0.1.0-source.zip download, with SOURCE-PROVENANCE.json recording the retained build sources. Release repository: https://github.com/nikamigaming-create/vhvr-openxr
-GPL-3.0 license: LICENSE-GPL-3.0.txt. Unity OpenXR notices: openxr-licenses. The required Unity OpenXR version is 1.16.1.
+Repository: https://github.com/nikamigaming-create/vhvr-openxr. VHVR-OpenXR-v0.1.0-source.zip contains corresponding fork sources, build scripts, tracked VR assets and notices. See LICENSE-GPL-3.0.txt, openxr-licenses and third-party-notices.
 
-To build the companion from this repository, install the .NET 8 SDK and the requirements above, then run from the repository root:
+Install .NET 8 SDK and BepInEx in your owned game installation. From this Git checkout, run:
 
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\OpenXR\scripts\Build-OpenXR.ps1 -ValheimDir "D:\SteamLibrary\steamapps\common\Valheim"
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\OpenXR\scripts\Build-CurrentFork.ps1 -ValheimDir "D:\SteamLibrary\steamapps\common\Valheim"
 
-The script obtains the official Unity OpenXR 1.16.1 package and checks its pinned checksum. It uses your own Valheim, VHVR and BepInEx assemblies as build references and writes the companion payload to OpenXR/dist/openxr-runtime. Those owned assemblies and official VHVR dependencies are not redistributed here.
+The script obtains/checks the pinned official VHVR dependency archive and Unity OpenXR 1.16.1 package, then builds VHVR/controllers/OpenXR into OpenXR/dist/current-fork. Owned assemblies are references only. Unity editor post-build scripts are not run. The checkout must contain the selected upstream commit and tracked Unity assets.
