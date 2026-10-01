@@ -1491,8 +1491,7 @@ namespace ValheimVRMod.VRCore
 
             if (!VHVRConfig.IsHipTrackingEnabled())
             {
-                vrikRef.solver.leftLeg.positionWeight = vrikRef.solver.rightLeg.positionWeight = 0;
-                vrikRef.solver.leftLeg.rotationWeight = vrikRef.solver.rightLeg.rotationWeight = 0;
+                VrikCreator.DisableFootTracking(vrikRef);
                 StaticObjects.leftFootCollision().gameObject.SetActive(false);
                 StaticObjects.rightFootCollision().gameObject.SetActive(false);
 
@@ -1778,6 +1777,7 @@ namespace ValheimVRMod.VRCore
             StaticObjects.rightFootCollision().setColliderParent(rightFoot);
             player.gameObject.GetOrAddComponent<FistBlock>();
             player.gameObject.GetOrAddComponent<ShipSteering>().Initialize(leftHandGesture, rightHandGesture);
+            player.gameObject.GetOrAddComponent<DrawbridgeCounterweightGrab>().Initialize(leftHandGesture, rightHandGesture);
             var reining = player.gameObject.GetOrAddComponent<Reining>();
             reining.leftHandGesture = leftHandGesture;
             reining.rightHandGesture = rightHandGesture;

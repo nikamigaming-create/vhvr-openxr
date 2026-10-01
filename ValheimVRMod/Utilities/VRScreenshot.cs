@@ -1,70 +1,101 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.XR;
 using static ValheimVRMod.Utilities.LogUtils;
 
 namespace ValheimVRMod.Utilities
 {
-    // Saves a screenshot chosen for the mirror mode rather than whatever ScreenCapture.CaptureScreenshot() picks in
-    // VR (it asks for the left eye, which the XR display may or may not honor):
-    // - Follow, Spectator and Stabilized: the flat screen window, which shows the view of the mod's own flat screen
-    //   camera those modes exist for.
-    // - Every other mode: one eye's image as rendered for the headset, undistorted, across its full width and
-    //   cropped at the top and bottom to 16:9 like FullWidthMirror does for the window. Right, Left and OpenVR would
-    //   otherwise give the stretched eye mirror, and None a black window. The eye is the mirror's one where the mode
-    //   has one, otherwise the right eye.
+    // Saves a screenshot of both eye images as rendered for the headset rather than whatever
+    // ScreenCapture.CaptureScreenshot() picks in VR (it asks for the left eye, which the XR display may or may not
+    // honor): side by side with the left eye on the left, whole, undistorted and at full resolution, in every mirror
+    // mode. Follow, Spectator and Stabilized also save the flat screen window, which shows the view of the mod's own
+    // flat screen camera those modes exist for, next to it with a _flat suffix.
+    // The eye images are tens of megapixels, so they are read back from the GPU asynchronously, and the images are
+    // encoded and written in the background, rather than stalling the frame.
     static class VRScreenshot
     {
-        private const float ASPECT = 16f / 9f;
-        // Gives up on a capture that never happens, e.g. because the capture camera did not render.
+        // Gives up on a capture or a read back that never happens, e.g. because the capture camera did not render.
         private const int MAX_FRAMES = 10;
 
-        // Calls onDone with null once the screenshot has been saved to path, or with why it could not be.
+        private static readonly XRNode[] EYES = { XRNode.LeftEye, XRNode.RightEye };
+
+        // Calls onDone with null once the screenshot has been saved to path, and the window to path with a _flat
+        // suffix where the mode has a flat screen camera, or with why one of them could not be.
         public static IEnumerator Capture(string path, Action<string> onDone)
         {
             string failure = null;
+            Task<string> windowSave = null;
+            string flatPath = null;
             if (VHVRConfig.UseSeparateFlatscreenCamera())
             {
+                flatPath = Path.Combine(
+                    Path.GetDirectoryName(path), Path.GetFileNameWithoutExtension(path) + "_flat" + Path.GetExtension(path));
                 // After everything, including any GUI, has been drawn into the window.
                 yield return new WaitForEndOfFrame();
-                failure = tryRun(() => saveWindow(path));
+                Image window = null;
+                failure = tryRun(() => readWindow(out window));
+                if (window != null)
+                {
+                    windowSave = saveInBackground(flatPath, window);
+                }
             }
-            else
+
+            string eyeFailure = null;
+            EyeReadback readback = null;
+            EyeCaptureCamera.Create(() => eyeFailure = tryRun(() => startEyeReadback(EYES, out readback)));
+            int frames = 0;
+            for (; readback == null && eyeFailure == null && frames < MAX_FRAMES; frames++)
             {
-                XRNode eye = VHVRConfig.GetMirrorViewMode() == Unity.XR.OpenVR.OpenVRSettings.MirrorViewModes.Left ||
-                    (VHVRConfig.UseFullWidthMirror(out XRNode fullWidthEye) && fullWidthEye == XRNode.LeftEye) ?
-                    XRNode.LeftEye : XRNode.RightEye;
-                bool done = false;
-                EyeCaptureCamera.Create(() =>
+                yield return null;
+            }
+            if (readback == null && eyeFailure == null)
+            {
+                eyeFailure = "the eye image was not captured";
+            }
+            // The read backs take a few frames.
+            for (frames = 0; readback != null && !readback.isDone && frames < MAX_FRAMES; frames++)
+            {
+                yield return null;
+            }
+            Task<string> eyeSave = null;
+            if (readback != null)
+            {
+                eyeFailure = !readback.isDone ? "the eye image was not read back" : readback.failure;
+                if (eyeFailure == null)
                 {
-                    failure = tryRun(() => saveEye(path, eye));
-                    done = true;
-                });
-                for (int frames = 0; !done && frames < MAX_FRAMES; frames++)
-                {
-                    yield return null;
-                }
-                if (!done)
-                {
-                    failure = "the eye image was not captured";
+                    eyeSave = Task.Run(() => saveEyes(path, readback));
                 }
             }
+
+            while ((windowSave != null && !windowSave.IsCompleted) || (eyeSave != null && !eyeSave.IsCompleted))
+            {
+                yield return null;
+            }
+            failure = failure ?? windowSave?.Result;
+            eyeFailure = eyeFailure ?? eyeSave?.Result;
             if (failure != null)
             {
-                LogWarning("Could not save the screenshot to " + path + ": " + failure);
+                LogWarning("Could not save the screenshot to " + flatPath + ": " + failure);
             }
-            onDone(failure);
+            if (eyeFailure != null)
+            {
+                LogWarning("Could not save the screenshot to " + path + ": " + eyeFailure);
+            }
+            onDone(eyeFailure ?? failure);
         }
 
-        private static string tryRun(Func<string> save)
+        private static string tryRun(Func<string> run)
         {
             try
             {
-                return save();
+                return run();
             }
             catch (Exception e)
             {
@@ -72,8 +103,17 @@ namespace ValheimVRMod.Utilities
             }
         }
 
-        private static string saveWindow(string path)
+        // Pixels in the layout ImageConversion expects: RGB24, bottom row first.
+        private class Image
         {
+            public byte[] rgb;
+            public int width;
+            public int height;
+        }
+
+        private static string readWindow(out Image window)
+        {
+            window = null;
             if (Screen.width <= 0 || Screen.height <= 0)
             {
                 return "window " + Screen.width + "x" + Screen.height;
@@ -83,8 +123,9 @@ namespace ValheimVRMod.Utilities
             Texture2D image = new Texture2D(Screen.width, Screen.height, TextureFormat.RGB24, false);
             try
             {
+                // Window sized, so waiting for the GPU here is short.
                 image.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0);
-                File.WriteAllBytes(path, image.EncodeToPNG());
+                window = new Image { rgb = image.GetRawTextureData<byte>().ToArray(), width = Screen.width, height = Screen.height };
             }
             finally
             {
@@ -94,9 +135,40 @@ namespace ValheimVRMod.Utilities
             return null;
         }
 
-        // Called right after the stereo cameras have rendered this frame's eye images.
-        private static string saveEye(string path, XRNode eye)
+        private static Task<string> saveInBackground(string path, Image image)
         {
+            return Task.Run(() => tryRun(() => save(path, image)));
+        }
+
+        // Safe off the main thread: ImageConversion.EncodeArrayToPNG() doesn't touch any Unity object.
+        private static string save(string path, Image image)
+        {
+            byte[] png = ImageConversion.EncodeArrayToPNG(
+                image.rgb, GraphicsFormat.R8G8B8_UNorm, (uint)image.width, (uint)image.height);
+            if (png == null)
+            {
+                return "could not encode the image";
+            }
+            File.WriteAllBytes(path, png);
+            return null;
+        }
+
+        // The eye images being read back from the GPU, each as RGBA32, bottom row first like ReadPixels().
+        private class EyeReadback
+        {
+            public int eyeWidth;
+            public int height;
+            public byte[][] eyes;
+            public int pending;
+            public string failure;
+            public bool isDone { get { return pending == 0; } }
+        }
+
+        // Called right after the stereo cameras have rendered this frame's eye images. Starts reading back the given
+        // eyes, to be saved next to each other, in order from left to right.
+        private static string startEyeReadback(XRNode[] eyes, out EyeReadback readback)
+        {
+            readback = null;
             XRDisplaySubsystem display = getDisplay();
             if (display == null)
             {
@@ -107,48 +179,94 @@ namespace ValheimVRMod.Utilities
             {
                 return "expected a render pass per eye, found " + display.GetRenderPassCount();
             }
-            display.GetRenderPass(eye == XRNode.LeftEye ? 0 : 1, out var pass);
-            RenderTextureDescriptor eyeDesc = pass.renderTargetDesc;
+            var passes = new XRDisplaySubsystem.XRRenderPass[eyes.Length];
+            for (int i = 0; i < eyes.Length; i++)
+            {
+                display.GetRenderPass(eyes[i] == XRNode.LeftEye ? 0 : 1, out passes[i]);
+            }
+            // Both eyes share one resolution, so the first eye's stands for all of them.
+            RenderTextureDescriptor eyeDesc = passes[0].renderTargetDesc;
             if (eyeDesc.width <= 0 || eyeDesc.height <= 0)
             {
                 return "eye texture " + eyeDesc.width + "x" + eyeDesc.height;
             }
 
-            // The full width and the centered band of the height that makes the image 16:9, or the whole image if
-            // it is already wider than that.
-            float sourceHeight = Mathf.Min(1, (float)eyeDesc.width / eyeDesc.height / ASPECT);
-            int width = eyeDesc.width;
-            int height = Mathf.RoundToInt(eyeDesc.height * sourceHeight);
-
-            // Keeps the eye's color encoding, so that the copy only crops the image and ReadPixels() below gets the
-            // encoded colors a PNG expects.
-            RenderTexture cropped = RenderTexture.GetTemporary(
-                width, height, 0, RenderTextureFormat.ARGB32,
-                eyeDesc.sRGB ? RenderTextureReadWrite.sRGB : RenderTextureReadWrite.Linear);
-            RenderTexture previous = RenderTexture.active;
-            Texture2D image = new Texture2D(width, height, TextureFormat.RGB24, false);
-            try
+            var result = new EyeReadback
             {
-                using (CommandBuffer commandBuffer = new CommandBuffer { name = "VHVR screenshot" })
+                eyeWidth = eyeDesc.width,
+                height = eyeDesc.height,
+                eyes = new byte[eyes.Length][],
+                pending = eyes.Length,
+            };
+            using (CommandBuffer commandBuffer = new CommandBuffer { name = "VHVR screenshot" })
+            {
+                for (int i = 0; i < eyes.Length; i++)
                 {
-                    // The eye image is stored upside down relative to what ReadPixels() below expects, so the band is
-                    // also flipped vertically while copying it: its top row goes to the bottom of the copy and so on.
-                    commandBuffer.Blit(
-                        pass.renderTarget, cropped, new Vector2(1, -sourceHeight), new Vector2(0, (1 + sourceHeight) / 2));
-                    Graphics.ExecuteCommandBuffer(commandBuffer);
+                    // Keeps the eye's color encoding, so that the copy only flips the image and the read back gets the
+                    // encoded colors a PNG expects. Released once read back.
+                    RenderTexture flipped = RenderTexture.GetTemporary(
+                        eyeDesc.width, eyeDesc.height, 0, RenderTextureFormat.ARGB32,
+                        eyeDesc.sRGB ? RenderTextureReadWrite.sRGB : RenderTextureReadWrite.Linear);
+                    // The eye image is stored upside down relative to what the read back gets, so it is flipped
+                    // vertically while copying it: its top row goes to the bottom of the copy and so on.
+                    commandBuffer.Blit(passes[i].renderTarget, flipped, new Vector2(1, -1), new Vector2(0, 1));
+                    int eye = i;
+                    commandBuffer.RequestAsyncReadback(flipped, 0, TextureFormat.RGBA32, request =>
+                    {
+                        if (request.hasError)
+                        {
+                            result.failure = "could not read back the " + eyes[eye] + " image";
+                        }
+                        else
+                        {
+                            // The data is only valid during this callback.
+                            result.eyes[eye] = request.GetData<byte>().ToArray();
+                        }
+                        RenderTexture.ReleaseTemporary(flipped);
+                        result.pending--;
+                    });
                 }
-                RenderTexture.active = cropped;
-                image.ReadPixels(new Rect(0, 0, width, height), 0, 0);
-                File.WriteAllBytes(path, image.EncodeToPNG());
+                Graphics.ExecuteCommandBuffer(commandBuffer);
             }
-            finally
-            {
-                RenderTexture.active = previous;
-                RenderTexture.ReleaseTemporary(cropped);
-                UnityEngine.Object.Destroy(image);
-            }
-            LogInfo("Saved the " + eye + " image " + eyeDesc.width + "x" + eyeDesc.height + ", cropped to " + width + "x" + height);
+            readback = result;
             return null;
+        }
+
+        // Runs in the background.
+        private static string saveEyes(string path, EyeReadback readback)
+        {
+            return tryRun(() =>
+            {
+                var stopwatch = Stopwatch.StartNew();
+                int eyeCount = readback.eyes.Length;
+                int width = readback.eyeWidth * eyeCount;
+                int height = readback.height;
+                var image = new Image { rgb = new byte[width * height * 3], width = width, height = height };
+                for (int y = 0; y < height; y++)
+                {
+                    for (int eye = 0; eye < eyeCount; eye++)
+                    {
+                        byte[] source = readback.eyes[eye];
+                        int sourceIndex = y * readback.eyeWidth * 4;
+                        int destinationIndex = (y * width + eye * readback.eyeWidth) * 3;
+                        // Drops alpha, which the eye images don't keep at opaque.
+                        for (int x = 0; x < readback.eyeWidth; x++)
+                        {
+                            image.rgb[destinationIndex++] = source[sourceIndex++];
+                            image.rgb[destinationIndex++] = source[sourceIndex++];
+                            image.rgb[destinationIndex++] = source[sourceIndex++];
+                            sourceIndex++;
+                        }
+                    }
+                }
+                string failure = save(path, image);
+                if (failure == null)
+                {
+                    LogInfo("Saved the eye images " + readback.eyeWidth + "x" + height + ", side by side as " + width +
+                            "x" + height + ", in " + stopwatch.ElapsedMilliseconds + " ms in the background");
+                }
+                return failure;
+            });
         }
 
         private static XRDisplaySubsystem getDisplay()
