@@ -1,3 +1,4 @@
+using ValheimVRMod.VRCore.Backends;
 using System;
 using HarmonyLib;
 using UnityEngine;
@@ -15,12 +16,12 @@ internal sealed class OpenXRTrackedEquipment : MonoBehaviour
         AccessTools.Method("ValheimVRMod.Utilities.VHVRConfig:UseVrControls"));
     Renderer[] renderers;
     bool[] previous;
-    SteamVR_Input_Sources hand;
+    VRInputSource hand;
     bool hidden;
 
     internal static void Attach(GameObject item, VisEquipment equipment, int itemHash, Transform joint)
     {
-        SteamVR_Input_Sources source = SteamVR_Input_Sources.Any;
+        VRInputSource source = VRInputSource.Any;
         var prefab = ObjectDB.instance.GetItemPrefab(itemHash);
         var attack = prefab ? prefab.GetComponent<ItemDrop>()?.m_itemData.m_shared.m_attack.m_attackAnimation : null;
         bool paired = attack == "dualaxes" || attack == "dual_knives"
@@ -28,15 +29,15 @@ internal sealed class OpenXRTrackedEquipment : MonoBehaviour
                 && (joint == equipment.m_leftHand || joint == equipment.m_rightHand));
         for (var parent = item.transform.parent; parent; parent = parent.parent)
         {
-            if (parent.name == "LeftHand_Attach") { source = SteamVR_Input_Sources.LeftHand; break; }
-            if (parent.name == "RightHand_Attach") { source = SteamVR_Input_Sources.RightHand; break; }
+            if (parent.name == "LeftHand_Attach") { source = VRInputSource.LeftHand; break; }
+            if (parent.name == "RightHand_Attach") { source = VRInputSource.RightHand; break; }
         }
         // Lanterns are parented directly to a tracked controller by VHVR.
         var physical = OpenXRPhysicalHands.Current;
-        if (physical && physical.Left.Hand && joint == physical.Left.Hand.transform) source = SteamVR_Input_Sources.LeftHand;
-        if (physical && physical.Right.Hand && joint == physical.Right.Hand.transform) source = SteamVR_Input_Sources.RightHand;
-        if (paired) source = SteamVR_Input_Sources.Any;
-        if (source == SteamVR_Input_Sources.Any && !paired) return;
+        if (physical && physical.Left.Hand && joint == physical.Left.Hand.transform) source = VRInputSource.LeftHand;
+        if (physical && physical.Right.Hand && joint == physical.Right.Hand.transform) source = VRInputSource.RightHand;
+        if (paired) source = VRInputSource.Any;
+        if (source == VRInputSource.Any && !paired) return;
         var guard = item.GetComponent<OpenXRTrackedEquipment>() ?? item.AddComponent<OpenXRTrackedEquipment>();
         guard.SetSuppressed(false);
         guard.hand = source;
@@ -49,15 +50,15 @@ internal sealed class OpenXRTrackedEquipment : MonoBehaviour
     void LateUpdate()
     {
         if (renderers == null) return;
-        bool valid = (hand == SteamVR_Input_Sources.RightHand || Valid(SteamVR_Input_Sources.LeftHand))
-            && (hand == SteamVR_Input_Sources.LeftHand || Valid(SteamVR_Input_Sources.RightHand));
-        bool suppress = OpenXRPlugin.Ready && UseVrControls()
-            && (!OpenXRPlugin.DisplayHealthy || !valid);
+        bool valid = (hand == VRInputSource.RightHand || Valid(VRInputSource.LeftHand))
+            && (hand == VRInputSource.LeftHand || Valid(VRInputSource.RightHand));
+        bool suppress = VRBackendHost.IsReady && UseVrControls()
+            && (!VRBackendHost.DisplayHealthy || !valid);
         SetSuppressed(suppress);
     }
-    static bool Valid(SteamVR_Input_Sources source)
+    static bool Valid(VRInputSource source)
     {
-        var pose = source == SteamVR_Input_Sources.LeftHand ? SteamVR_Actions.valheim_PoseL : SteamVR_Actions.valheim_PoseR;
+        var pose = source == VRInputSource.LeftHand ? VRInputActions.valheim_PoseL : VRInputActions.valheim_PoseR;
         return pose != null && pose.GetPoseIsValid(source);
     }
 

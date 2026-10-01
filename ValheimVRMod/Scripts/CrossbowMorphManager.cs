@@ -1,3 +1,4 @@
+using ValheimVRMod.VRCore.Backends;
 using System;
 using UnityEngine;
 using ValheimVRMod.Utilities;
@@ -201,7 +202,7 @@ namespace ValheimVRMod.Scripts
                 if (Player.m_localPlayer.IsWeaponLoaded())
                 {
                     // The unloaded crossbow object is set inactive upon successful weapon reload, which is a good point to provide haptic feedback.
-                    VRPlayer.arrowHand.hapticAction.Execute(0, 0.2f, 100, 0.3f, VRPlayer.arrowHandInputSource);
+                    VRInput.Haptic.Execute(0, 0.2f, 100, 0.3f, VRPlayer.arrowHandInputSource);
                 }
             }
         }
@@ -316,7 +317,7 @@ namespace ValheimVRMod.Scripts
             bool wasPulling = isPulling;
             isPulling =
                 !Player.m_localPlayer.IsWeaponLoaded() &&
-                SteamVR_Actions.valheim_Grab.GetState(VRPlayer.arrowHandInputSource) &&
+                VRInputActions.valheim_Grab.GetState(VRPlayer.arrowHandInputSource) &&
                 (wasPulling || IsHandClosePullStart());
             if (isPulling)
             {

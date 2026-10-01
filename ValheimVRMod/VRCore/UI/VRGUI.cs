@@ -1,3 +1,4 @@
+using ValheimVRMod.VRCore.Backends;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -268,7 +269,7 @@ namespace ValheimVRMod.VRCore.UI
         public void Update()
         {
             disableVanillaInputSystemUiInputModule();
-            if (VHVRConfig.UseVrControls() && SteamVR_Actions.valheim_ToggleMenu.GetStateDown(SteamVR_Input_Sources.Any))
+            if (VHVRConfig.UseVrControls() && VRInputActions.valheim_ToggleMenu.GetStateDown(VRInputSource.Any))
             {
                 ModConfigurationManagerBridge.CloseWindow();
             }
@@ -778,20 +779,20 @@ namespace ValheimVRMod.VRCore.UI
         {
             if (_leftPointer.pointerIsActive())
             {
-                UpdateMouseButtonsFromLaserPointer(SteamVR_Input_Sources.LeftHand);
+                UpdateMouseButtonsFromLaserPointer(VRInputSource.LeftHand);
             }
             if (_rightPointer.pointerIsActive())
             {
-                UpdateMouseButtonsFromLaserPointer(SteamVR_Input_Sources.RightHand);
+                UpdateMouseButtonsFromLaserPointer(VRInputSource.RightHand);
             }
         }
 
-        private void UpdateMouseButtonsFromLaserPointer(SteamVR_Input_Sources hand)
+        private void UpdateMouseButtonsFromLaserPointer(VRInputSource hand)
         {
             // The laser pointers have no middle button of their own, UpdateButtonStates adds the MiddleClick chord.
             _inputModule.UpdateButtonStates(
-                SteamVR_Actions.Valheim.LeftClick.GetState(hand),
-                SteamVR_Actions.Valheim.RightClick.GetState(hand),
+                VRInputActions.valheim_LeftClick.GetState(hand),
+                VRInputActions.valheim_RightClick.GetState(hand),
                 false);
         }
 
@@ -810,11 +811,11 @@ namespace ValheimVRMod.VRCore.UI
             float steps = GetScrollButtonSteps();
             if (_leftPointer.pointerIsActive())
             {
-                steps += SteamVR_Actions.Valheim.ContextScroll.GetAxis(SteamVR_Input_Sources.LeftHand).y;
+                steps += VRInputActions.valheim_ContextScroll.GetAxis(VRInputSource.LeftHand).y;
             }
             if (_rightPointer.pointerIsActive())
             {
-                steps += SteamVR_Actions.Valheim.ContextScroll.GetAxis(SteamVR_Input_Sources.RightHand).y;
+                steps += VRInputActions.valheim_ContextScroll.GetAxis(VRInputSource.RightHand).y;
             }
             _inputModule.ScrollBySteps(steps);
         }

@@ -1,3 +1,4 @@
+using ValheimVRMod.VRCore.Backends;
 using System.Collections.Generic;
 using UnityEngine;
 using Valve.VR;
@@ -14,13 +15,13 @@ internal sealed class OpenXRPhysicalEquipment : MonoBehaviour
     {
         internal Transform Frame;
         internal Bounds Bounds;
-        internal SteamVR_Input_Sources Hand;
+        internal VRInputSource Hand;
         internal MeshCollider Hull;
     }
     readonly List<Part> parts = new();
     static int frame = -1;
 
-    internal static void Attach(GameObject item, SteamVR_Input_Sources hand, VisEquipment equipment)
+    internal static void Attach(GameObject item, VRInputSource hand, VisEquipment equipment)
     {
         var component = item.GetComponent<OpenXRPhysicalEquipment>() ?? item.AddComponent<OpenXRPhysicalEquipment>();
         component.ClearParts();
@@ -36,7 +37,7 @@ internal sealed class OpenXRPhysicalEquipment : MonoBehaviour
         if (!Items.Contains(component)) Items.Add(component);
     }
 
-    void AddSkin(SkinnedMeshRenderer skin, SteamVR_Input_Sources hand, VisEquipment equipment)
+    void AddSkin(SkinnedMeshRenderer skin, VRInputSource hand, VisEquipment equipment)
     {
         if (!skin.sharedMesh) return;
         var baked = new Mesh();
@@ -52,7 +53,7 @@ internal sealed class OpenXRPhysicalEquipment : MonoBehaviour
             var left = equipment.m_leftHand.parent;
             var right = equipment.m_rightHand.parent;
             Vector3[] moved = null;
-            if (hand == SteamVR_Input_Sources.Any)
+            if (hand == VRInputSource.Any)
             {
                 // Retail meshes can be unreadable. Two CPU skin evaluations
                 // identify the left-hand vertices without reading bone weights
@@ -89,8 +90,8 @@ internal sealed class OpenXRPhysicalEquipment : MonoBehaviour
             var skinToRight = right.worldToLocalMatrix * skinToWorld;
             for (int i = 0; i < vertices.Length; i++)
             {
-                bool isLeft = hand == SteamVR_Input_Sources.LeftHand
-                    || (hand == SteamVR_Input_Sources.Any && skinToWorld.MultiplyVector(moved[i] - vertices[i]).sqrMagnitude > .1f);
+                bool isLeft = hand == VRInputSource.LeftHand
+                    || (hand == VRInputSource.Any && skinToWorld.MultiplyVector(moved[i] - vertices[i]).sqrMagnitude > .1f);
                 Vector3 point = (isLeft ? skinToLeft : skinToRight).MultiplyPoint3x4(vertices[i]);
                 leftVertices[i] = isLeft;
                 vertices[i] = point;
@@ -107,8 +108,8 @@ internal sealed class OpenXRPhysicalEquipment : MonoBehaviour
                 var destination = leftVertices[a] ? leftTriangles : rightTriangles;
                 destination.Add(a); destination.Add(b); destination.Add(c);
             }
-            if (leftCount > 0) AddSegments(left, SteamVR_Input_Sources.LeftHand, vertices, leftTriangles.ToArray(), hand == SteamVR_Input_Sources.Any);
-            if (rightCount > 0) AddSegments(right, SteamVR_Input_Sources.RightHand, vertices, rightTriangles.ToArray(), hand == SteamVR_Input_Sources.Any);
+            if (leftCount > 0) AddSegments(left, VRInputSource.LeftHand, vertices, leftTriangles.ToArray(), hand == VRInputSource.Any);
+            if (rightCount > 0) AddSegments(right, VRInputSource.RightHand, vertices, rightTriangles.ToArray(), hand == VRInputSource.Any);
         }
         finally
         {
@@ -119,7 +120,7 @@ internal sealed class OpenXRPhysicalEquipment : MonoBehaviour
         }
     }
 
-    void AddSegments(Transform frame, SteamVR_Input_Sources hand, Vector3[] vertices, int[] triangles, bool exactPeer = false)
+    void AddSegments(Transform frame, VRInputSource hand, Vector3[] vertices, int[] triangles, bool exactPeer = false)
     {
         if (triangles.Length == 0) return;
         var total = new Bounds(vertices[triangles[0]],Vector3.zero);
@@ -230,7 +231,7 @@ internal sealed class OpenXRPhysicalEquipment : MonoBehaviour
             foreach (var part in item.parts)
             {
                 if (!part.Frame || !part.Frame.gameObject.activeInHierarchy) continue;
-                var state = part.Hand == SteamVR_Input_Sources.LeftHand ? current.Left : current.Right;
+                var state = part.Hand == VRInputSource.LeftHand ? current.Left : current.Right;
                 if (!state.Hand || !state.Active) continue;
                 // The segments of a mesh share one animated transform.
                 // Sample it once in this refresh, never across frames.

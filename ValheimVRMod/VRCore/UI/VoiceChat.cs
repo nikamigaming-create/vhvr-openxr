@@ -1,4 +1,5 @@
-﻿using System.Collections;
+using ValheimVRMod.VRCore.Backends;
+using System.Collections;
 using UnityEngine.Networking;
 using UnityEngine;
 using ValheimVRMod.Utilities;
@@ -33,8 +34,8 @@ namespace ValheimVRMod.VRCore.UI
 
             var talkGesture = GetTalkGesture();
 
-            bool bothGrab = SteamVR_Actions.valheim_Grab.GetState(SteamVR_Input_Sources.LeftHand) &&
-                            SteamVR_Actions.valheim_Grab.GetState(SteamVR_Input_Sources.RightHand);
+            bool bothGrab = VRInputActions.valheim_Grab.GetState(VRInputSource.LeftHand) &&
+                            VRInputActions.valheim_Grab.GetState(VRInputSource.RightHand);
 
             if (isRecording)
             {

@@ -1,3 +1,4 @@
+using ValheimVRMod.VRCore.Backends;
 using UnityEngine;
 using UnityEngine.Rendering;
 using ValheimVRMod.Scripts.Block;
@@ -253,8 +254,8 @@ namespace ValheimVRMod.Scripts
                 {
                     leftHandPreparingToUnstickTwoHandedWield = rightHandPreparingToUnstickTwoHandedWield = false;
                 }
-                else if (SteamVR_Actions.valheim_Grab.GetStateUp(SteamVR_Input_Sources.LeftHand) ||
-                        SteamVR_Actions.valheim_Grab.GetStateUp(SteamVR_Input_Sources.RightHand))
+                else if (VRInputActions.valheim_Grab.GetStateUp(VRInputSource.LeftHand) ||
+                        VRInputActions.valheim_Grab.GetStateUp(VRInputSource.RightHand))
                 {
                     if (leftHandPreparingToUnstickTwoHandedWield && rightHandPreparingToUnstickTwoHandedWield)
                     {
@@ -264,18 +265,18 @@ namespace ValheimVRMod.Scripts
                 }
                 else
                 {
-                    if (SteamVR_Actions.valheim_Grab.GetStateDown(SteamVR_Input_Sources.LeftHand))
+                    if (VRInputActions.valheim_Grab.GetStateDown(VRInputSource.LeftHand))
                     {
                         leftHandPreparingToUnstickTwoHandedWield = true;
                     }
-                    if (SteamVR_Actions.valheim_Grab.GetStateDown(SteamVR_Input_Sources.RightHand))
+                    if (VRInputActions.valheim_Grab.GetStateDown(VRInputSource.RightHand))
                     {
                         rightHandPreparingToUnstickTwoHandedWield = true;
                     }
                 }
             }
-            else if (!SteamVR_Actions.valheim_Grab.GetState(SteamVR_Input_Sources.LeftHand) ||
-                    !SteamVR_Actions.valheim_Grab.GetState(SteamVR_Input_Sources.RightHand))
+            else if (!VRInputActions.valheim_Grab.GetState(VRInputSource.LeftHand) ||
+                    !VRInputActions.valheim_Grab.GetState(VRInputSource.RightHand))
             {
                 return TwoHandedState.SingleHanded;
             }
@@ -410,9 +411,9 @@ namespace ValheimVRMod.Scripts
             switch (attackAnimation)
             {
                 case "knife_stab":
-                    return EquipScript.CurrentOffHandEquipType() != EquipType.Shield && SteamVR_Actions.valheim_Grab.GetState(VRPlayer.mainWeaponHandInputSource);
+                    return EquipScript.CurrentOffHandEquipType() != EquipType.Shield && VRInputActions.valheim_Grab.GetState(VRPlayer.mainWeaponHandInputSource);
                 default:
-                    if (!SteamVR_Actions.valheim_Grab.GetState(VRPlayer.mainWeaponHandInputSource))
+                    if (!VRInputActions.valheim_Grab.GetState(VRPlayer.mainWeaponHandInputSource))
                     {
                         return false;
                     }

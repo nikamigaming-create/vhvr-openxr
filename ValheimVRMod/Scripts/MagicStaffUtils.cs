@@ -1,3 +1,4 @@
+using ValheimVRMod.VRCore.Backends;
 using UnityEngine;
 using ValheimVRMod.Utilities;
 using ValheimVRMod.VRCore;
@@ -19,16 +20,16 @@ namespace ValheimVRMod.Scripts
         // The hand that is behind the other when wielding two-handed, or the main weapon hand when wielding
         // single-handed. Aim-and-shoot staves fire from this hand's trigger, which leaves the front hand
         // trigger free for the swing-launch gesture of the swingable staves.
-        public static SteamVR_Input_Sources RearHandInputSource
+        public static VRInputSource RearHandInputSource
         {
             get
             {
                 switch (LocalWeaponWield.LocalPlayerTwoHandedState)
                 {
                     case WeaponWield.TwoHandedState.LeftHandBehind:
-                        return SteamVR_Input_Sources.LeftHand;
+                        return VRInputSource.LeftHand;
                     case WeaponWield.TwoHandedState.RightHandBehind:
-                        return SteamVR_Input_Sources.RightHand;
+                        return VRInputSource.RightHand;
                     default:
                         return VRPlayer.mainWeaponHandInputSource;
                 }
@@ -48,25 +49,25 @@ namespace ValheimVRMod.Scripts
         // Two-handed, this is the rear hand's trigger, disabled while any laser pointer is up like any other
         // weapon trigger. Single-handed, this is the item hand's own trigger, disabled while that hand's laser
         // pointer is up, and unless AllowSimpleMagicAttack is set it also needs the grab of that same hand.
-        public static bool IsCastTriggerHeld(SteamVR_Input_Sources itemHand)
+        public static bool IsCastTriggerHeld(VRInputSource itemHand)
         {
             if (LocalWeaponWield.isCurrentlyTwoHanded())
             {
-                return !LaserPointerChords.IsLaserActiveFor(SteamVR_Input_Sources.Any) &&
-                    SteamVR_Actions.valheim_Use.GetState(RearHandInputSource);
+                return !LaserPointerChords.IsLaserActiveFor(VRInputSource.Any) &&
+                    VRInputActions.valheim_Use.GetState(RearHandInputSource);
             }
             if (LaserPointerChords.IsLaserActiveFor(itemHand))
             {
                 return false;
             }
-            return SteamVR_Actions.valheim_Use.GetState(itemHand) &&
-                (VHVRConfig.AllowSimpleMagicAttack() || SteamVR_Actions.valheim_Grab.GetState(itemHand));
+            return VRInputActions.valheim_Use.GetState(itemHand) &&
+                (VHVRConfig.AllowSimpleMagicAttack() || VRInputActions.valheim_Grab.GetState(itemHand));
         }
 
         // The secondary attack is made with the trigger of the hand that is not holding the staff.
         private static bool IsSecondaryTriggerHeld()
         {
-            return SteamVR_Actions.valheim_Use.GetState(VRPlayer.secondaryWeaponHandInputSource);
+            return VRInputActions.valheim_Use.GetState(VRPlayer.secondaryWeaponHandInputSource);
         }
 
         // Only some (mostly modded) staves have a secondary attack, so it must be null-checked before use.

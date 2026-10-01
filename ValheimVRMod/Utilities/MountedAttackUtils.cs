@@ -1,4 +1,5 @@
-﻿
+using ValheimVRMod.VRCore.Backends;
+
 using HarmonyLib;
 using System.Reflection;
 using ValheimVRMod.Patches;
@@ -15,7 +16,7 @@ namespace ValheimVRMod.Utilities
 
         public void UnmountIfJumping()
         {
-            if (doodadController == null || !SteamVR_Actions.valheim_Jump.GetState(SteamVR_Input_Sources.Any))
+            if (doodadController == null || !VRInputActions.valheim_Jump.GetState(VRInputSource.Any))
             {
                 return;
             }

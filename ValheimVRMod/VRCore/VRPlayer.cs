@@ -1,3 +1,4 @@
+using ValheimVRMod.VRCore.Backends;
 using AmplifyOcclusion;
 using RootMotion.FinalIK;
 using System.Collections.Generic;
@@ -270,11 +271,11 @@ namespace ValheimVRMod.VRCore
         private static float baseFootHeight;
 
 
-        public static SteamVR_Input_Sources dominantHandInputSource { get { return VHVRConfig.LeftHanded() ? SteamVR_Input_Sources.LeftHand : SteamVR_Input_Sources.RightHand; } }
-        public static SteamVR_Input_Sources mainWeaponHandInputSource { get { return VHVRConfig.LeftHanded() ^ offHandWield ? SteamVR_Input_Sources.LeftHand : SteamVR_Input_Sources.RightHand; } }
-        public static SteamVR_Input_Sources secondaryWeaponHandInputSource { get { return VHVRConfig.LeftHanded() ^ offHandWield ? SteamVR_Input_Sources.RightHand : SteamVR_Input_Sources.LeftHand; } }
-        public static SteamVR_Input_Sources arrowHandInputSource { get { return VHVRConfig.LeftHanded() ^ offHandWield ? SteamVR_Input_Sources.LeftHand : SteamVR_Input_Sources.RightHand; } }
-        public static SteamVR_Input_Sources bowHandInputSource { get { return VHVRConfig.LeftHanded() ^ offHandWield ? SteamVR_Input_Sources.RightHand : SteamVR_Input_Sources.LeftHand; } }
+        public static VRInputSource dominantHandInputSource { get { return VHVRConfig.LeftHanded() ? VRInputSource.LeftHand : VRInputSource.RightHand; } }
+        public static VRInputSource mainWeaponHandInputSource { get { return VHVRConfig.LeftHanded() ^ offHandWield ? VRInputSource.LeftHand : VRInputSource.RightHand; } }
+        public static VRInputSource secondaryWeaponHandInputSource { get { return VHVRConfig.LeftHanded() ^ offHandWield ? VRInputSource.RightHand : VRInputSource.LeftHand; } }
+        public static VRInputSource arrowHandInputSource { get { return VHVRConfig.LeftHanded() ^ offHandWield ? VRInputSource.LeftHand : VRInputSource.RightHand; } }
+        public static VRInputSource bowHandInputSource { get { return VHVRConfig.LeftHanded() ^ offHandWield ? VRInputSource.RightHand : VRInputSource.LeftHand; } }
 
         public static bool handsActive
         {
@@ -303,7 +304,7 @@ namespace ValheimVRMod.VRCore
         // Unlike mainWeaponHand, these follow the dominant hand setting only and not offhand wielding.
         public static Hand dominantHand { get { return VHVRConfig.LeftHanded() ? leftHand : rightHand; } }
         public static Hand nonDominantHand { get { return VHVRConfig.LeftHanded() ? rightHand : leftHand; } }
-        public static SteamVR_Input_Sources nonDominantHandInputSource { get { return VHVRConfig.LeftHanded() ? SteamVR_Input_Sources.RightHand : SteamVR_Input_Sources.LeftHand; } }
+        public static VRInputSource nonDominantHandInputSource { get { return VHVRConfig.LeftHanded() ? VRInputSource.RightHand : VRInputSource.LeftHand; } }
 
         public static Vector3 dominantHandRayDirection { get
             {
@@ -490,12 +491,12 @@ namespace ValheimVRMod.VRCore
             if (timerLeft > 0)
             {
                 timerLeft -= Time.deltaTime;
-                leftHand.hapticAction.Execute(0f, 0.1f, 20f, 0.1f, SteamVR_Input_Sources.LeftHand);
+                VRInput.Haptic.Execute(0f, 0.1f, 20f, 0.1f, VRInputSource.LeftHand);
             }
             if (timerRight > 0)
             {
                 timerRight -= Time.deltaTime;
-                rightHand.hapticAction.Execute(0f, 0.1f, 20f, 0.1f, SteamVR_Input_Sources.RightHand);
+                VRInput.Haptic.Execute(0f, 0.1f, 20f, 0.1f, VRInputSource.RightHand);
             }
         }
 
@@ -2275,7 +2276,7 @@ namespace ValheimVRMod.VRCore
                 return;
             }
 
-            if (SteamVR_Actions.valheim_StopGesturedLocomotion.GetState(SteamVR_Input_Sources.Any) || EquipScript.CurrentMainHandEquipType() == EquipType.Fishing)
+            if (VRInputActions.valheim_StopGesturedLocomotion.GetState(VRInputSource.Any) || EquipScript.CurrentMainHandEquipType() == EquipType.Fishing)
             {
                 return;
             }
@@ -2467,7 +2468,7 @@ namespace ValheimVRMod.VRCore
                 case EquipType.Knife:
                 case EquipType.None:
                 case EquipType.Tankard:
-                    if (GesturedLocomotionManager.isInUse || SteamVR_Actions.valheim_Grab.GetState(SteamVR_Input_Sources.Any))
+                    if (GesturedLocomotionManager.isInUse || VRInputActions.valheim_Grab.GetState(VRInputSource.Any))
                     {
                         // Allow leaning when holding small weapons or bare-handed.
                         return 1f;

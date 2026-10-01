@@ -1,3 +1,4 @@
+using ValheimVRMod.VRCore.Backends;
 using UnityEngine;
 using ValheimVRMod.Utilities;
 using ValheimVRMod.VRCore;
@@ -46,25 +47,25 @@ namespace ValheimVRMod.Scripts
             {
                 return;
             }
-            updateHand(leftGrab, leftHandGesture, StaticObjects.leftFist().transform, VRPlayer.leftHand, SteamVR_Input_Sources.LeftHand);
-            updateHand(rightGrab, rightHandGesture, StaticObjects.rightFist().transform, VRPlayer.rightHand, SteamVR_Input_Sources.RightHand);
+            updateHand(leftGrab, leftHandGesture, StaticObjects.leftFist().transform, VRPlayer.leftHand, VRInputSource.LeftHand);
+            updateHand(rightGrab, rightHandGesture, StaticObjects.rightFist().transform, VRPlayer.rightHand, VRInputSource.RightHand);
         }
 
-        private void updateHand(GrabState grab, HandGesture handGesture, Transform fist, Hand hand, SteamVR_Input_Sources inputSource)
+        private void updateHand(GrabState grab, HandGesture handGesture, Transform fist, Hand hand, VRInputSource inputSource)
         {
-            if (!SteamVR_Actions.valheim_Grab.GetState(inputSource) || !handGesture.isHandFree())
+            if (!VRInputActions.valheim_Grab.GetState(inputSource) || !handGesture.isHandFree())
             {
                 grab.drawbridge = null;
                 return;
             }
 
-            if (SteamVR_Actions.valheim_Grab.GetStateDown(inputSource))
+            if (VRInputActions.valheim_Grab.GetStateDown(inputSource))
             {
                 grab.drawbridge = findGrabbedDrawbridge(fist.position);
                 if (grab.drawbridge != null)
                 {
                     grab.startHandHeight = getHandHeight(fist);
-                    hand.hapticAction.Execute(0, 0.25f, 100, 0.5f, inputSource);
+                    VRInput.Haptic.Execute(0, 0.25f, 100, 0.5f, inputSource);
                     LogUtils.LogDebug("Grabbed the counterweight of " + grab.drawbridge.name);
                 }
             }
@@ -79,7 +80,7 @@ namespace ValheimVRMod.Scripts
             if ((pull > MIN_PULL_DISTANCE && !isLowered) || (pull < -MIN_PULL_DISTANCE && isLowered))
             {
                 grab.drawbridge.Interact(Player.m_localPlayer, false, false);
-                hand.hapticAction.Execute(0, 0.4f, 100, 0.8f, inputSource);
+                VRInput.Haptic.Execute(0, 0.4f, 100, 0.8f, inputSource);
                 // Done with this grab, so that holding on does not operate the bridge again.
                 grab.drawbridge = null;
             }

@@ -1,3 +1,4 @@
+using ValheimVRMod.VRCore.Backends;
 using System;
 using System.Reflection;
 using System.Collections.Generic;
@@ -123,7 +124,7 @@ namespace ValheimVRMod.Patches
                 // Not usable while the left hand's own laser pointer is up: otherwise a click meant for a GUI
                 // panel (e.g. in left-handed mode) would also interact with whatever the ray happens to hit
                 // behind or through it.
-                if (LaserPointerChords.IsLaserActiveFor(SteamVR_Input_Sources.LeftHand))
+                if (LaserPointerChords.IsLaserActiveFor(VRInputSource.LeftHand))
                 {
                     return;
                 }
@@ -133,9 +134,9 @@ namespace ValheimVRMod.Patches
                 {
                     return;
                 }
-                if (!SteamVR_Actions.valheim_Use.GetStateDown(SteamVR_Input_Sources.LeftHand))
+                if (!VRInputActions.valheim_Use.GetStateDown(VRInputSource.LeftHand))
                 {
-                    if (SteamVR_Actions.valheim_Use.GetState(SteamVR_Input_Sources.LeftHand) && leftHover)
+                    if (VRInputActions.valheim_Use.GetState(VRInputSource.LeftHand) && leftHover)
                     {
                         __instance.Interact(leftHover, true, false);
                     }

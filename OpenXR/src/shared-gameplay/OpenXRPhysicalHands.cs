@@ -1,3 +1,4 @@
+using ValheimVRMod.VRCore.Backends;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -15,7 +16,7 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
     internal sealed class HandState
     {
         internal Hand Hand;
-        internal SteamVR_Input_Sources Source;
+        internal VRInputSource Source;
         internal OpenXRContactSolver Solver;
         internal Pose Tracked;
         internal Vector3 Origin;
@@ -108,7 +109,7 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
     }
     static void Ensure()
     {
-        if (!OpenXRPlugin.Ready || !Player.m_localPlayer || !useControls()) return;
+        if (!VRBackendHost.IsReady || !Player.m_localPlayer || !useControls()) return;
         if (Current && Current.player != Player.m_localPlayer) { Destroy(Current); Current = null; }
         if (!Current) Current = Player.m_localPlayer.gameObject.AddComponent<OpenXRPhysicalHands>();
     }
@@ -117,23 +118,23 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
         player = GetComponent<Player>();
         mask = LayerMask.GetMask("Default", "Default_small", "piece", "terrain", "static_solid", "item", "vehicle", "character", "character_net", "hitbox");
         grabMask = LayerMask.GetMask("item", "character", "character_net", "hitbox");
-        Left.Source = SteamVR_Input_Sources.LeftHand;
-        Right.Source = SteamVR_Input_Sources.RightHand;
+        Left.Source = VRInputSource.LeftHand;
+        Right.Source = VRInputSource.RightHand;
         Left.Solver = new OpenXRContactSolver(transform, mask);
         Right.Solver = new OpenXRContactSolver(transform, mask);
         SetPalm(Left); SetPalm(Right);
-        OpenXRPlugin.Log.LogInfo("OpenXR physical interaction active: swept hand/equipment contacts and native loose-item grips.");
+        VRLog.Info("OpenXR physical interaction active: swept hand/equipment contacts and native loose-item grips.");
     }
     static void SetPalm(HandState state)
     {
         // VHVR's anatomical hand targets are behind the controller grip in
         // Unity +Z space. A palm box has real thickness but excludes fingers.
         state.Solver.Shapes[0] = new OpenXRContactSolver.Shape(
-            new Vector3(state.Source == SteamVR_Input_Sources.LeftHand ? -.025f : .025f, .045f, -.12f),
+            new Vector3(state.Source == VRInputSource.LeftHand ? -.025f : .025f, .045f, -.12f),
             new Vector3(.045f, .035f, .07f), Quaternion.identity);
         state.Solver.Count = 1;
     }
-    bool Available => isActiveAndEnabled && OpenXRPlugin.Ready && OpenXRPlugin.DisplayHealthy && OpenXRPlugin.DisplayFocused
+    bool Available => isActiveAndEnabled && VRBackendHost.IsReady && VRBackendHost.DisplayHealthy && VRBackendHost.Focused
         && player && player == Player.m_localPlayer && !player.IsDead() && !player.IsTeleporting()
         && !Game.IsPaused() && !InventoryGui.IsVisible() && !Menu.IsVisible() && useControls() && firstPerson();
     bool SharedGrip => twoHanded() || RightItem(player)?.m_shared.m_itemType == ItemDrop.ItemData.ItemType.Bow
@@ -143,8 +144,8 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
     {
         var current = Current;
         if (!current) return;
-        var state = __instance.inputSource == SteamVR_Input_Sources.LeftHand ? current.Left :
-            __instance.inputSource == SteamVR_Input_Sources.RightHand ? current.Right : null;
+        var state = (VRInputSource)(int)__instance.inputSource == VRInputSource.LeftHand ? current.Left :
+            (VRInputSource)(int)__instance.inputSource == VRInputSource.RightHand ? current.Right : null;
         if (state == null) return;
         state.Hand = state == current.Left ? leftHand() : rightHand();
         if (!state.Hand || state.Hand.transform != __instance.transform) return;
@@ -250,10 +251,10 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
         if (!gate.Begin(Time.unscaledTime, state.Solver, peer.Solver, contact)) return;
         state.Contacts++;
         float strength = Mathf.Clamp(.08f + speed * .12f, .08f, .65f);
-        state.Hand.hapticAction.Execute(0, .035f, 100, strength, state.Source);
+        VRInput.Haptic.Execute(0, .035f, 100, strength, state.Source);
         if (equipmentContact && speed >= OpenXRImpactGate.ClinkSpeed)
         {
-            peer.Hand.hapticAction.Execute(0, .035f, 100, strength, peer.Source);
+            VRInput.Haptic.Execute(0, .035f, 100, strength, peer.Source);
             state.Clinks++;
             // Native equipment impact effects supply the game's own sound and
             // material response; touching your own gear does not start Attack.
@@ -338,7 +339,7 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
         if ((!state.Grab && !state.CreatureGrip) || !wrist || !target) return;
         float error = Vector3.Distance(wrist.position,target.position);
         if (error <= .12f) return;
-        OpenXRPlugin.Log.LogInfo($"OpenXR grip released outside avatar reach: {state.Source}, gap={error:F3} m, creature={(bool)state.CreatureGrip}.");
+        VRLog.Info($"OpenXR grip released outside avatar reach: {state.Source}, gap={error:F3} m, creature={(bool)state.CreatureGrip}.");
         Release(state);
     }
     void BindGestures()
@@ -361,7 +362,7 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
     }
     void UpdateGrip(HandState state)
     {
-        bool down = SteamVR_Actions.valheim_Grab.GetState(state.Source);
+        bool down = VRInputActions.valheim_Grab.GetState(state.Source);
         if (!state.Active || !down) { Release(state); state.Grip = down; return; }
         if (state.Grab || state.CreatureGrip)
         {
@@ -403,7 +404,7 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
                     {
                         state.CreatureGrip = creature.gameObject.AddComponent<OpenXRCreatureGrip>();
                         state.CreatureGrip.Begin(this, state, creature, state.PendingCollider.ClosestPoint(palm));
-                        state.Hand.hapticAction.Execute(0, .05f, 100, .3f, state.Source);
+                        VRInput.Haptic.Execute(0, .05f, 100, .3f, state.Source);
                     }
                 }
             }
@@ -420,7 +421,7 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
         state.Pending = null;
         state.Grab = grabbed.gameObject.AddComponent<OpenXRPhysicalGrab>();
         state.Grab.Begin(this, state, grabbed, state.PendingCollider.ClosestPoint(state.PhysicalPalm));
-        state.Hand.hapticAction.Execute(0, .05f, 100, .25f, state.Source);
+        VRInput.Haptic.Execute(0, .05f, 100, .25f, state.Source);
     }
     bool Reachable(Vector3 palm, Vector3 point, Rigidbody target)
     {
@@ -466,7 +467,7 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
         if (!__result || !current) return;
         var state = ___isRightHand ? current.Right : current.Left;
         bool release = !state.Active || state.Solver.Yielding
-            || SteamVR_Actions.valheim_Walk.GetAxis(SteamVR_Input_Sources.Any).sqrMagnitude > .04f;
+            || VRInputActions.valheim_Walk.GetAxis(VRInputSource.Any).sqrMagnitude > .04f;
         if (!release && state.Hand)
         {
             var offset = state.Hand.transform.InverseTransformPoint(__instance.transform.position);

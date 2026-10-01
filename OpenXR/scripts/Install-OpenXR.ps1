@@ -68,7 +68,7 @@ try {
         if((Get-FileHash -LiteralPath $target).Hash -ne $file.sha256){throw 'OpenXR installation verification failed.'}
     }
     SaveManifest
-    Write-Host 'Installed VHVR OpenXR. Uses your active OpenXR runtime.'
+    Write-Host 'Installed VHVR OpenXR / OpenVR. Select the backend with -vrbackend=openxr or -vrbackend=openvr; default OpenXR.'
 } catch {
     foreach($file in $changed) {
         $target=Inside $game $file.path

@@ -1,3 +1,4 @@
+using ValheimVRMod.VRCore.Backends;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -844,8 +845,8 @@ namespace ValheimVRMod.VRCore.UI {
                 yield break;
             }
             MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, "Screenshot saved: VHVRScreenshots/" + fileName);
-            VRPlayer.leftHand?.hapticAction.Execute(0, 0.1f, 100, 0.3f, Valve.VR.SteamVR_Input_Sources.LeftHand);
-            VRPlayer.rightHand?.hapticAction.Execute(0, 0.1f, 100, 0.3f, Valve.VR.SteamVR_Input_Sources.RightHand);
+            VRInput.Haptic.Execute(0, 0.1f, 100, 0.3f, VRInputSource.LeftHand);
+            VRInput.Haptic.Execute(0, 0.1f, 100, 0.3f, VRInputSource.RightHand);
         }
 
         private static void ToggleAutoPickup()

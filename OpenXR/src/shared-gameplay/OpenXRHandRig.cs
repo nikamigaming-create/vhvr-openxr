@@ -1,8 +1,8 @@
+using ValheimVRMod.VRCore.Backends;
 using System;
 using System.Collections.Generic;
 using HarmonyLib;
 using UnityEngine;
-using UnityEngine.InputSystem.Controls;
 using Valve.VR;
 
 namespace Nikami.OpenXR;
@@ -96,9 +96,9 @@ internal sealed class OpenXRHandRig
             }
             Ready = Calibrate(Left) && Calibrate(Right);
             if (Ready)
-                OpenXRPlugin.Log.LogInfo($"OpenXR native hand rig: 30 avatar finger joints; anatomical grip-to-wrist L={Left.GripFromWrist.position:F3}, R={Right.GripFromWrist.position:F3} m.");
+                VRLog.Info($"OpenXR native hand rig: 30 avatar finger joints; anatomical grip-to-wrist L={Left.GripFromWrist.position:F3}, R={Right.GripFromWrist.position:F3} m.");
         }
-        catch (Exception error) { OpenXRPlugin.Log.LogError("OpenXR native hand rig initialization failed: " + error); }
+        catch (Exception error) { VRLog.Error("OpenXR native hand rig initialization failed: " + error); }
         finally { if (clone) UnityEngine.Object.Destroy(clone.gameObject); }
     }
 
@@ -172,11 +172,11 @@ internal sealed class OpenXRHandRig
     {
         var state = hand.State;
         if (!state.Active || hand.FingersFree == null || !hand.FingersFree()) return;
-        var device = InputAdapter.Device(state.Source == SteamVR_Input_Sources.LeftHand ? 1 : 2);
-        float squeeze = Mathf.Clamp01(InputAdapter.Control<AxisControl>(device, "grip")?.ReadValue() ?? 0);
-        float trigger = Mathf.Clamp01(InputAdapter.Control<AxisControl>(device, "trigger")?.ReadValue() ?? 0);
-        bool indexTouch = Touched(device, "triggerTouched", "triggerTouch");
-        bool thumbTouch = Touched(device, "primaryTouched", "primaryTouch") || Touched(device, "secondaryTouched", "secondaryTouch") || Touched(device, "thumbstickTouched", "primary2DAxisTouch");
+        var controls = VRInput.Backend.ReadHandControls(state.Source);
+        float squeeze = Mathf.Clamp01(controls.Grip);
+        float trigger = Mathf.Clamp01(controls.Trigger);
+        bool indexTouch = controls.TriggerTouched;
+        bool thumbTouch = controls.PrimaryTouched || controls.SecondaryTouched || controls.ThumbstickTouched;
         bool held = state.Grab || state.CreatureGrip;
         if (!state.Grip || held || state.Solver.Yielding) hand.SurfaceTarget = null;
         else if (state.Solver.LastContact.Collider) hand.SurfaceTarget = state.Solver.LastContact.Collider;
@@ -257,8 +257,6 @@ internal sealed class OpenXRHandRig
         }
         return false;
     }
-    static bool Touched(UnityEngine.InputSystem.InputDevice device, string name, string alias) =>
-        (InputAdapter.Control<ButtonControl>(device, name) ?? InputAdapter.Control<ButtonControl>(device, alias))?.isPressed ?? false;
     static void ApplyFinger(HandRig hand, int finger, float curl)
     {
         float sample = Mathf.Clamp01(curl) * 8;

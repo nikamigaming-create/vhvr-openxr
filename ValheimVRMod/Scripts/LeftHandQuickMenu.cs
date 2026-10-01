@@ -1,3 +1,4 @@
+using ValheimVRMod.VRCore.Backends;
 using System;
 using UnityEngine;
 using ValheimVRMod.Utilities;
@@ -17,7 +18,7 @@ namespace ValheimVRMod.Scripts {
 
         protected override void ExecuteHapticFeedbackOnHoverTo()
         {
-            VRPlayer.leftHand.hapticAction.Execute(0, 0.1f, 40, 0.1f, SteamVR_Input_Sources.LeftHand);
+            VRInput.Haptic.Execute(0, 0.1f, 40, 0.1f, VRInputSource.LeftHand);
         }
 
         protected override Transform handTransform { get { return VRPlayer.leftHand.transform; } }

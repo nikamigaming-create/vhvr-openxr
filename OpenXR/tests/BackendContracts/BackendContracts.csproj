@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <Reference Include="ValheimVRMod"><HintPath>../../tools/VHVR.Gameplay/bin/Release/net472/ValheimVRMod.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(ValheimDir)/Valheim_Data/Managed/UnityEngine.CoreModule.dll</HintPath></Reference>
+    <Reference Include="SteamVR"><HintPath>../../tools/SteamVR.Runtime/bin/Release/net472/SteamVR.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

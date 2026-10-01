@@ -1,3 +1,4 @@
+using ValheimVRMod.VRCore.Backends;
 using UnityEngine;
 using ValheimVRMod.Utilities;
 using ValheimVRMod.VRCore;
@@ -31,8 +32,8 @@ namespace ValheimVRMod.Scripts
         {
             get
             {
-                return SteamVR_Actions.valheim_StopGesturedLocomotion.activeBinding &&
-                    !SteamVR_Actions.valheim_StopGesturedLocomotion.GetState(SteamVR_Input_Sources.Any);
+                return VRInputActions.valheim_StopGesturedLocomotion.activeBinding &&
+                    !VRInputActions.valheim_StopGesturedLocomotion.GetState(VRInputSource.Any);
             }
         }
 
@@ -70,8 +71,8 @@ namespace ValheimVRMod.Scripts
                 targetVelocity += locomotion.GetTargetVelocityFromGestures(localPlayer, deltaTime);
             }
 
-            if (SteamVR_Actions.valheim_Grab.GetState(SteamVR_Input_Sources.LeftHand) &&
-                SteamVR_Actions.valheim_Grab.GetState(SteamVR_Input_Sources.RightHand))
+            if (VRInputActions.valheim_Grab.GetState(VRInputSource.LeftHand) &&
+                VRInputActions.valheim_Grab.GetState(VRInputSource.RightHand))
             {
                 gesturedLocomotionVelocity = targetVelocity;
             }
@@ -116,7 +117,7 @@ namespace ValheimVRMod.Scripts
             else if (horizontalSpeed > RUN_ACITIVATION_SPEED &&
                 Vector3.Dot(-VRPlayer.leftHand.transform.right, (Vector3)upDirection) < 0.5f &&
                 Vector3.Dot(VRPlayer.rightHand.transform.right, (Vector3)upDirection) < 0.5f &&
-                !SteamVR_Actions.valheim_StopGesturedLocomotion.GetState(SteamVR_Input_Sources.Any))
+                !VRInputActions.valheim_StopGesturedLocomotion.GetState(VRInputSource.Any))
             {
                 isRunning = true;
             }
@@ -192,7 +193,7 @@ namespace ValheimVRMod.Scripts
                 }
                 float liquidLevel = Player.m_localPlayer.GetLiquidLevel();
                 Vector3 velocity = Vector3.zero;
-                if (!SteamVR_Actions.valheim_StopGesturedLocomotion.GetState(SteamVR_Input_Sources.LeftHand) &&
+                if (!VRInputActions.valheim_StopGesturedLocomotion.GetState(VRInputSource.LeftHand) &&
                     leftHandTransform.position.y < liquidLevel)
                 {
                     Vector3 leftHandPalmar = leftHandTransform.right;
@@ -200,7 +201,7 @@ namespace ValheimVRMod.Scripts
                     leftHandPropulsion = Mathf.Max(0, leftHandPropulsion - HAND_PROPULSION_DEADZONE);
                     velocity += -leftHandVelocity.normalized * leftHandPropulsion;
                 }
-                if (!SteamVR_Actions.valheim_StopGesturedLocomotion.GetState(SteamVR_Input_Sources.RightHand) &&
+                if (!VRInputActions.valheim_StopGesturedLocomotion.GetState(VRInputSource.RightHand) &&
                     rightHandTransform.position.y < liquidLevel)
                 {
                     Vector3 rightHandPalmar = -rightHandTransform.right;
@@ -299,7 +300,7 @@ namespace ValheimVRMod.Scripts
 
             public override Vector3 GetTargetVelocityFromGestures(Player player, float deltaTime)
             {
-                if (!SteamVR_Actions.valheim_StopGesturedLocomotion.activeBinding ||
+                if (!VRInputActions.valheim_StopGesturedLocomotion.activeBinding ||
                     !VHVRConfig.IsGesturedJumpEnabled() ||
                     (player.IsSwimming() && !player.IsOnGround()))
                 {
@@ -307,8 +308,8 @@ namespace ValheimVRMod.Scripts
                     return Vector3.zero;
                 }
 
-                if (SteamVR_Actions.valheim_Grab.GetState(SteamVR_Input_Sources.LeftHand) &&
-                    SteamVR_Actions.valheim_Grab.GetState(SteamVR_Input_Sources.RightHand))
+                if (VRInputActions.valheim_Grab.GetState(VRInputSource.LeftHand) &&
+                    VRInputActions.valheim_Grab.GetState(VRInputSource.RightHand))
                 {
                     isFlyActive = false;
                     return Vector3.zero;
@@ -346,7 +347,7 @@ namespace ValheimVRMod.Scripts
                 velocity.y = 0;
 
                 if (!isFlyActive &&
-                    !SteamVR_Actions.valheim_StopGesturedLocomotion.GetState(SteamVR_Input_Sources.Any) &&
+                    !VRInputActions.valheim_StopGesturedLocomotion.GetState(VRInputSource.Any) &&
                     handHorizontalDistance > 1.5f &&
                     velocity.sqrMagnitude > 10f)
                 {
@@ -389,7 +390,7 @@ namespace ValheimVRMod.Scripts
                 new GameObject("LeftHandWalkingWheel").AddComponent<WalkRunIndicator>().Init(true, this);
             }
 
-            protected override SteamVR_Input_Sources inputSource { get { return SteamVR_Input_Sources.LeftHand; } }
+            protected override VRInputSource inputSource { get { return VRInputSource.LeftHand; } }
             protected override Vector3 handVelocity { get { return VRPlayer.leftHandPhysicsEstimator.GetVelocity(); } }
             protected override Transform handTransform { get { return VRPlayer.leftHand.transform; } }
             protected override Transform otherHandTransform { get { return VRPlayer.rightHand.transform; } }
@@ -404,7 +405,7 @@ namespace ValheimVRMod.Scripts
                 new GameObject("RightHandWalkingWheel").AddComponent<WalkRunIndicator>().Init(false, this);
             }
 
-            protected override SteamVR_Input_Sources inputSource { get { return SteamVR_Input_Sources.RightHand; } }
+            protected override VRInputSource inputSource { get { return VRInputSource.RightHand; } }
             protected override Vector3 handVelocity { get { return VRPlayer.rightHandPhysicsEstimator.GetVelocity(); } }
             protected override Transform handTransform { get { return VRPlayer.rightHand.transform; } }
             protected override Transform otherHandTransform { get { return VRPlayer.leftHand.transform; } }
@@ -418,7 +419,7 @@ namespace ValheimVRMod.Scripts
             private Camera vrCam;
             private bool isWalkingOrRunningUsingGestures = false;
 
-            protected abstract SteamVR_Input_Sources inputSource { get; }
+            protected abstract VRInputSource inputSource { get; }
             protected abstract Vector3 handVelocity { get; }
             protected abstract Transform handTransform { get; }
 
@@ -481,18 +482,18 @@ namespace ValheimVRMod.Scripts
 
             private bool isStoppingWalkRunByButton()
             {
-                if (!SteamVR_Actions.valheim_StopGesturedLocomotion.activeBinding)
+                if (!VRInputActions.valheim_StopGesturedLocomotion.activeBinding)
                 {
                     // If the steam action has not been set, disable gestured walk because there will be
                     // otherwise no way to stop it.
                     return true;
                 }
-                return SteamVR_Actions.valheim_StopGesturedLocomotion.GetState(inputSource);
+                return VRInputActions.valheim_StopGesturedLocomotion.GetState(inputSource);
             }
 
             private bool ShouldStart(Vector3 armSpan, Vector3 wheelDiameter, Vector3 walkDirection, float walkSpeed)
             {
-                if  (SteamVR_Actions.valheim_StopGesturedLocomotion.GetState(SteamVR_Input_Sources.Any))
+                if  (VRInputActions.valheim_StopGesturedLocomotion.GetState(VRInputSource.Any))
                 {
                     return false;
                 }
@@ -671,7 +672,7 @@ namespace ValheimVRMod.Scripts
 
             public override Vector3 GetTargetVelocityFromGestures(Player player, float deltaTime)
             {
-                if (!VHVRConfig.IsGesturedWalkRunEnabled() || !VHVRConfig.TrackFeet() || !SteamVR_Actions.valheim_StopGesturedLocomotion.activeBinding)
+                if (!VHVRConfig.IsGesturedWalkRunEnabled() || !VHVRConfig.TrackFeet() || !VRInputActions.valheim_StopGesturedLocomotion.activeBinding)
                 {
                     pace = Pace.STOP;
                     return Vector3.zero;
@@ -693,7 +694,7 @@ namespace ValheimVRMod.Scripts
 
                 UpdatePace(leftFootVelocity, rightFootVelocity, leftFootElevation, rightFootElevation, walkDirection, walkSpeed, deltaTime);
 
-                if (!SteamVR_Actions.valheim_StopGesturedLocomotion.GetState(SteamVR_Input_Sources.Any) &&
+                if (!VRInputActions.valheim_StopGesturedLocomotion.GetState(VRInputSource.Any) &&
                     leftFootElevation > 0.0625f &&
                     rightFootElevation > 0.0625f &&
                     Vector3.Dot(leftFootVelocity, upDirection.Value) > 0.5f &&
@@ -746,7 +747,7 @@ namespace ValheimVRMod.Scripts
                 
                 if (pace == Pace.STOP)
                 {
-                    if (SteamVR_Actions.valheim_StopGesturedLocomotion.GetState(SteamVR_Input_Sources.Any))
+                    if (VRInputActions.valheim_StopGesturedLocomotion.GetState(VRInputSource.Any))
                     {
                         return;
                     }
@@ -799,8 +800,8 @@ namespace ValheimVRMod.Scripts
                     return true;
                 }
 
-                if (SteamVR_Actions.valheim_Grab.GetState(SteamVR_Input_Sources.LeftHand) &&
-                    SteamVR_Actions.valheim_Grab.GetState(SteamVR_Input_Sources.RightHand))
+                if (VRInputActions.valheim_Grab.GetState(VRInputSource.LeftHand) &&
+                    VRInputActions.valheim_Grab.GetState(VRInputSource.RightHand))
                 {
                     return true;
                 }
@@ -825,9 +826,9 @@ namespace ValheimVRMod.Scripts
             {
                 if (!VHVRConfig.IsGesturedWalkRunEnabled() ||
                     !VHVRConfig.TrackFeet() ||
-                    !SteamVR_Actions.valheim_StopGesturedLocomotion.activeBinding ||
+                    !VRInputActions.valheim_StopGesturedLocomotion.activeBinding ||
                     Player.m_localPlayer.m_attached ||
-                    SteamVR_Actions.valheim_StopGesturedLocomotion.GetState(SteamVR_Input_Sources.Any))
+                    VRInputActions.valheim_StopGesturedLocomotion.GetState(VRInputSource.Any))
                 {
                     return Vector3.zero;
                 }
@@ -912,8 +913,8 @@ namespace ValheimVRMod.Scripts
                     player.IsAttached() ||
                     player.InDodge() ||
                     player.m_queuedDodgeTimer > 0 ||
-                    !SteamVR_Actions.valheim_StopGesturedLocomotion.activeBinding ||
-                    SteamVR_Actions.valheim_StopGesturedLocomotion.GetState(SteamVR_Input_Sources.Any))
+                    !VRInputActions.valheim_StopGesturedLocomotion.activeBinding ||
+                    VRInputActions.valheim_StopGesturedLocomotion.GetState(VRInputSource.Any))
                 {
                     return Vector3.zero;
                 }

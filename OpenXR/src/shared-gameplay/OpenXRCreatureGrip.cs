@@ -1,3 +1,4 @@
+using ValheimVRMod.VRCore.Backends;
 using HarmonyLib;
 using UnityEngine;
 
@@ -35,7 +36,7 @@ internal sealed class OpenXRCreatureGrip : MonoBehaviour
         // ApplyPushback divides force by player mass. Scale by the actual
         // mass so modded characters still receive a short native shove.
         player.ApplyPushback(direction.normalized, player.GetMass() * 2);
-        hand.Hand.hapticAction.Execute(0, .12f, 80, .6f, hand.Source);
+        VRInput.Haptic.Execute(0, .12f, 80, .6f, hand.Source);
         player.Message(MessageHud.MessageType.Center, "Too strong to hold");
     }
     internal void Begin(OpenXRPhysicalHands owner, OpenXRPhysicalHands.HandState hand, Character target, Vector3 point)
@@ -77,7 +78,7 @@ internal sealed class OpenXRCreatureGrip : MonoBehaviour
             Release();
             // A small creature struggles loose rather than becoming an
             // indefinitely immobilised target. Its native AI keeps running.
-            hand.Hand.hapticAction.Execute(0, .08f, 80, .35f, hand.Source);
+            VRInput.Haptic.Execute(0, .08f, 80, .35f, hand.Source);
             return;
         }
         player.UseStamina(Time.fixedDeltaTime * 8);

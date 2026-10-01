@@ -1,3 +1,4 @@
+using ValheimVRMod.VRCore.Backends;
 using UnityEngine;
 using ValheimVRMod.Utilities;
 using ValheimVRMod.VRCore;
@@ -21,7 +22,7 @@ namespace ValheimVRMod.Scripts
         private bool isRightHand;
         private HandGesture handGesture;
         private PhysicsEstimator physicsEstimator { get { return isRightHand ? VRPlayer.rightHandPhysicsEstimator : VRPlayer.leftHandPhysicsEstimator; } }
-        private SteamVR_Input_Sources inputSource { get { return isRightHand ? SteamVR_Input_Sources.RightHand : SteamVR_Input_Sources.LeftHand; } }
+        private VRInputSource inputSource { get { return isRightHand ? VRInputSource.RightHand : VRInputSource.LeftHand; } }
         private Hand thisHand {  get { return isRightHand ? VRPlayer.rightHand : VRPlayer.leftHand; } }
 
         public static float LocalPlayerSecondaryAttackCooldown = 0;
@@ -62,7 +63,7 @@ namespace ValheimVRMod.Scripts
                 return;
             }
 
-            if (!SteamVR_Actions.valheim_Grab.GetState(inputSource) || !handGesture.isHandFree())
+            if (!VRInputActions.valheim_Grab.GetState(inputSource) || !handGesture.isHandFree())
             {
                 lastGrabbedType = Grabbable.NONE;
             }
@@ -88,7 +89,7 @@ namespace ValheimVRMod.Scripts
                 return;
             }
 
-            if (handGesture.isHandFree() && SteamVR_Actions.valheim_Grab.GetStateDown(inputSource) && VRPlayer.vrCam != null)
+            if (handGesture.isHandFree() && VRInputActions.valheim_Grab.GetStateDown(inputSource) && VRPlayer.vrCam != null)
             {
                 Grabbable newGrabbable = GetGrabbable(collider.gameObject);
                 if (newGrabbable != Grabbable.NONE)
@@ -96,7 +97,7 @@ namespace ValheimVRMod.Scripts
                     lastGrabbedType = newGrabbable;
                     lastGrabbedPoint = transform.position;
                     lastGrabOffsetFromHead = lastGrabbedPoint - VRPlayer.vrCam.transform.position;
-                    thisHand.hapticAction.Execute(0, 0.25f, 100, 0.5f, inputSource);
+                    VRInput.Haptic.Execute(0, 0.25f, 100, 0.5f, inputSource);
                     if (lastGrabbedType == Grabbable.PICKABLE)
                     {
                         grabbedPickable = collider.GetComponentInParent<Pickable>();
@@ -146,7 +147,7 @@ namespace ValheimVRMod.Scripts
                 // When using bare hands or claws to attack anything other than an enemy character,
                 // require both pressing trigger and grip so that the attack does not accidentally happen too easily.
                 if (handGesture.isHandFree() &&
-                    !SteamVR_Actions.valheim_Use.GetState(inputSource) &&
+                    !VRInputActions.valheim_Use.GetState(inputSource) &&
                     !Player.m_localPlayer.m_inCraftingStation) {
                     Character character = collider.GetComponentInParent<Character>();
                     if (character == null ||
@@ -230,7 +231,7 @@ namespace ValheimVRMod.Scripts
                 return true;
             }
 
-            thisHand.hapticAction.Execute(0, 0.25f, 100, 0.25f, inputSource);
+            VRInput.Haptic.Execute(0, 0.25f, 100, 0.25f, inputSource);
 
             if (Time.time - lastPetTime > 3f)
             {
@@ -281,7 +282,7 @@ namespace ValheimVRMod.Scripts
         private Grabbable GetGrabbable(GameObject target)
         {
             if (!handGesture.isHandFree() ||
-                !SteamVR_Actions.valheim_Grab.GetStateDown(inputSource) ||
+                !VRInputActions.valheim_Grab.GetStateDown(inputSource) ||
                 Player.m_localPlayer == null ||
                 Player.m_localPlayer.m_inCraftingStation)
             {
@@ -355,7 +356,7 @@ namespace ValheimVRMod.Scripts
             // Props can sit on the terrain layer without being terrain - the cave rocks and roots in
             // the Deep North tunnels among them - and a layer test made those unpunchable while every
             // other weapon could hit them freely.
-            if (WeaponCollision.isTerrain(collider.gameObject) && !SteamVR_Actions.valheim_Grab.GetState(inputSource))
+            if (WeaponCollision.isTerrain(collider.gameObject) && !VRInputActions.valheim_Grab.GetState(inputSource))
             {
                 // Prevent hitting terrain too easily.
                 return;
@@ -441,7 +442,7 @@ namespace ValheimVRMod.Scripts
             if (attack.Start(Player.m_localPlayer, null, null, Player.m_localPlayer.m_animEvent,
                 null, item, null, 0.0f, 0.0f))
             {
-                thisHand.hapticAction.Execute(0, 0.2f, 100, 0.5f, inputSource);
+                VRInput.Haptic.Execute(0, 0.2f, 100, 0.5f, inputSource);
             }
         }
 
@@ -537,7 +538,7 @@ namespace ValheimVRMod.Scripts
 
             if (handGesture.isHandFree() || holdingShield())
             {
-                return SteamVR_Actions.valheim_Grab.GetState(inputSource);
+                return VRInputActions.valheim_Grab.GetState(inputSource);
             }
 
             return hasDualWieldingWeaponEquipped() || holdingSecondaryWeapon();
@@ -597,7 +598,7 @@ namespace ValheimVRMod.Scripts
                 return false;
             }
 
-            return SteamVR_Actions.valheim_Grab.GetState(inputSource);
+            return VRInputActions.valheim_Grab.GetState(inputSource);
         }
 
         private void RotateColliderForSecondaryWeapon()

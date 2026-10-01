@@ -1,3 +1,4 @@
+using ValheimVRMod.VRCore.Backends;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -235,8 +236,8 @@ namespace ValheimVRMod.Scripts
                 movementCooldown -= Time.deltaTime;
             }
             
-            var mainHandTrigger = SteamVR_Actions.valheim_Use.GetState(
-                isRightHand ? SteamVR_Input_Sources.RightHand : SteamVR_Input_Sources.LeftHand);
+            var mainHandTrigger = VRInputActions.valheim_Use.GetState(
+                isRightHand ? VRInputSource.RightHand : VRInputSource.LeftHand);
             var inCooldown = AttackTargetMeshCooldown.isPrimaryTargetInCooldown();
             var localWeaponForward = LocalWeaponWield.weaponForward * secondaryAttack.m_attackRange / 2;
             var localHandPos = VRPlayer.mainWeaponHand.transform.position - Player.m_localPlayer.transform.position;
@@ -256,14 +257,14 @@ namespace ValheimVRMod.Scripts
                 item.m_shared.m_itemType == ItemDrop.ItemData.ItemType.TwoHandedWeapon &&
                 VHVRConfig.TwoHandedWield() &&
                 !LocalWeaponWield.isCurrentlyTwoHanded();
-            if (!SteamVR_Actions.valheim_Grab.GetState(VRPlayer.mainWeaponHandInputSource) || needsTwoHandedWield)
+            if (!VRInputActions.valheim_Grab.GetState(VRPlayer.mainWeaponHandInputSource) || needsTwoHandedWield)
             {
                 firstPos = Vector3.zero;
                 lastPos = Vector3.zero;
             }
             
             //Input Check
-            if (SteamVR_Actions.valheim_Grab.GetState(VRPlayer.mainWeaponHandInputSource) && 
+            if (VRInputActions.valheim_Grab.GetState(VRPlayer.mainWeaponHandInputSource) &&
                 !inCooldown && 
                 !VRPlayer.IsClickableGuiOpen && 
                 !needsTwoHandedWield)
@@ -319,7 +320,7 @@ namespace ValheimVRMod.Scripts
                     outline.enabled = false;
                     if (!isSecondaryAttackEnded)
                     {
-                        VRPlayer.mainWeaponHand.hapticAction.Execute(0, 0.2f, 50, 0.1f, VRPlayer.mainWeaponHandInputSource);
+                        VRInput.Haptic.Execute(0, 0.2f, 50, 0.1f, VRPlayer.mainWeaponHandInputSource);
                         hitDir = Vector3.zero;
                         isSecondaryAttackEnded = true;
                     }
@@ -572,8 +573,8 @@ namespace ValheimVRMod.Scripts
                     Player.m_localPlayer.m_animEvent,
                     null, item, null, 0.0f, 0.0f))
                     {
-                        VRPlayer.rightHand.hapticAction.Execute(
-                            0, 0.2f, 100, 0.5f, isRightHand ? SteamVR_Input_Sources.RightHand : SteamVR_Input_Sources.LeftHand);
+                        VRInput.Haptic.Execute(
+                            0, 0.2f, 100, 0.5f, isRightHand ? VRInputSource.RightHand : VRInputSource.LeftHand);
                     }
                 }
                 isSecondaryAttackTriggered = true;

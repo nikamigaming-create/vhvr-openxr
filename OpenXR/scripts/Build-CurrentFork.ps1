@@ -3,11 +3,14 @@ param(
     [string]$BaseVHVRArchive,
     [string]$OpenXRPackage,
     [string]$Destination,
-    [string]$UpstreamCommit = '47fad0494de5daee19356d5eb4d692671a0e3994'
+    [string]$UpstreamCommit = 'd3739391ac419c05d71563cb736aabad9cd2e0b3',
+    [string]$ReleaseVersion = '0.2.0'
 )
 $ErrorActionPreference = 'Stop'
 $openxrRoot = Split-Path $PSScriptRoot -Parent
 $repoRoot = Split-Path $openxrRoot -Parent
+$forkPolicy = Get-Content -LiteralPath (Join-Path $openxrRoot 'FORK-CHANGES.json') -Raw | ConvertFrom-Json
+$allowedChanges = @($forkPolicy.changes.path)
 $cache = Join-Path $env:LOCALAPPDATA 'VHVR-OpenXR/dependencies'
 if (!$Destination) { $Destination = Join-Path $openxrRoot 'dist/current-fork' }
 if (!$BaseVHVRArchive) {
@@ -38,7 +41,8 @@ if (Test-Path -LiteralPath (Join-Path $repoRoot '.git')) {
     & git -C $repoRoot merge-base --is-ancestor $sourceCommit HEAD
     if ($LASTEXITCODE) { throw 'Checkout does not contain the selected upstream revision.' }
     $upstreamChanges = @(& git -C $repoRoot diff --name-only $sourceCommit -- ValheimVRMod Unity/ValheimVR/Assets/SteamVR Unity/ValheimVR/Assets/SteamVR_Input Unity/ValheimVR/Assets/AssetBundles Unity/ValheimVR/Assets/StreamingAssets/SteamVR)
-    if ($upstreamChanges | Where-Object { $_ -ne 'ValheimVRMod/Scripts/GesturedLocomotionManager.cs' }) { throw 'Unexpected changes to upstream gameplay, controllers or assets.' }
+    if ($upstreamChanges | Where-Object { $_ -notin $allowedChanges }) { throw 'Unexpected changes outside the documented backend refactor.' }
+    $upstreamChanges = $allowedChanges
 } else {
     # The corresponding source ZIP has no Git history; its recorded revision
     # and exact adapter/correction source hashes provide the archive contract.
@@ -50,6 +54,9 @@ if (Test-Path -LiteralPath (Join-Path $repoRoot '.git')) {
     }
     foreach ($entry in $savedSource.forkCorrections) {
         if ((Get-FileHash -LiteralPath (Join-Path $repoRoot $entry.path)).Hash -ne $entry.sha256) { throw ('Source archive correction mismatch: ' + $entry.path) }
+    }
+    foreach ($entry in $savedSource.sharedSources) {
+        if ((Get-FileHash -LiteralPath (Join-Path $repoRoot $entry.path)).Hash -ne $entry.sha256) { throw ('Shared source archive hash mismatch: ' + $entry.path) }
     }
     $upstreamChanges = @($savedSource.forkCorrections.path)
 }
@@ -83,6 +90,7 @@ $managed = Join-Path $openxrRoot 'dist/build-managed'
 New-Item -ItemType Directory -Path $managed -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $openxrRoot 'tools/SteamVR.Runtime/bin/Release/net472/SteamVR.dll') -Destination $managed -Force
 Copy-Item -LiteralPath (Join-Path $openxrRoot 'tools/SteamVR.Actions/bin/Release/net472/SteamVR_Actions.dll') -Destination $managed -Force
+Copy-Item -LiteralPath (Join-Path $openxrRoot 'tools/VHVR.Gameplay/bin/Release/net472/ValheimVRMod.dll') -Destination $managed -Force
 & dotnet build (Join-Path $openxrRoot 'src/nikami-openxr/nikami-openxr.csproj') -c Release "-p:ValheimDir=$ValheimDir" "-p:SteamVRManagedDir=$managed" "-p:OpenXRPackage=$OpenXRPackage" -p:ImportDirectoryBuildTargets=false --nologo -v:q -clp:ErrorsOnly
 if ($LASTEXITCODE) { throw 'Current XR companion build failed.' }
 CopyPayload (Join-Path $openxrRoot 'tools/VHVR.Gameplay/bin/Release/net472/ValheimVRMod.dll') 'BepInEx/plugins/ValheimVRMod.dll'
@@ -96,11 +104,12 @@ CopyPayload (Join-Path $OpenXRPackage 'Runtime/windows/x64/UnityOpenXR.dll') 'Va
 CopyPayload (Join-Path $OpenXRPackage 'RuntimeLoaders/windows/x64/openxr_loader.dll') 'Valheim_Data/Plugins/x86_64/openxr_loader.dll'
 CopyPayload (Join-Path $OpenXRPackage 'Runtime/UnitySubsystemsManifest.json') 'Valheim_Data/UnitySubsystems/UnityOpenXR/UnitySubsystemsManifest.json'
 $sources = foreach ($file in Get-ChildItem -LiteralPath (Join-Path $openxrRoot 'src/nikami-openxr') -Filter '*.cs' -File) { [pscustomobject]@{name=$file.Name;sha256=(Get-FileHash -LiteralPath $file.FullName).Hash} }
-$corrections = foreach ($path in $upstreamChanges) { [pscustomobject]@{path=$path;sha256=(Get-FileHash -LiteralPath (Join-Path $repoRoot $path)).Hash;reason='Guard the disabled debug walking indicator against an uninitialized LineRenderer during startup.'} }
-$provenance = [ordered]@{upstreamCommit=$sourceCommit;adapter_sha256=(Get-FileHash -LiteralPath (Join-Path $payload 'BepInEx/plugins/Nikami.OpenXR/Nikami.OpenXR.dll')).Hash;gameplay_sha256=(Get-FileHash -LiteralPath (Join-Path $payload 'BepInEx/plugins/ValheimVRMod.dll')).Hash;forkCorrections=@($corrections);sources=@($sources)}
+$corrections = foreach ($path in $upstreamChanges) { [pscustomobject]@{path=$path;sha256=(Get-FileHash -LiteralPath (Join-Path $repoRoot $path)).Hash;reason=($forkPolicy.changes | Where-Object {$_.path -eq $path}).reason} }
+$sharedSources = foreach ($file in Get-ChildItem -LiteralPath (Join-Path $openxrRoot 'src/shared-gameplay') -Filter '*.cs' -File) { [pscustomobject]@{path=('OpenXR/src/shared-gameplay/' + $file.Name);sha256=(Get-FileHash -LiteralPath $file.FullName).Hash} }
+$provenance = [ordered]@{upstreamCommit=$sourceCommit;adapter_sha256=(Get-FileHash -LiteralPath (Join-Path $payload 'BepInEx/plugins/Nikami.OpenXR/Nikami.OpenXR.dll')).Hash;gameplay_sha256=(Get-FileHash -LiteralPath (Join-Path $payload 'BepInEx/plugins/ValheimVRMod.dll')).Hash;forkCorrections=@($corrections);sources=@($sources);sharedSources=@($sharedSources)}
 [IO.File]::WriteAllText((Join-Path $openxrRoot 'SOURCE-PROVENANCE.json'), (($provenance | ConvertTo-Json -Depth 6).Replace("`r`n", "`n") + "`n"), (New-Object Text.UTF8Encoding($false)))
 Copy-Item -LiteralPath (Join-Path $openxrRoot 'SOURCE-PROVENANCE.json') -Destination $Destination -Force
 $files = foreach ($relative in $manifestFiles.Keys) { [pscustomobject]@{path=$relative;sha256=(Get-FileHash -LiteralPath $manifestFiles[$relative]).Hash} }
-$manifestJson = [ordered]@{releaseTag='openxr-v0.1.0';adapterVersion='0.1.0';unityOpenXR='1.16.1';testedValheim='1.0.16';upstreamCommit=$sourceCommit;upstreamChannel='master';baseDependencyRelease='v0.10.5';sourceManifestSha256=(Get-FileHash -LiteralPath (Join-Path $openxrRoot 'SOURCE-PROVENANCE.json')).Hash;files=@($files)} | ConvertTo-Json -Depth 6
+$manifestJson = [ordered]@{releaseTag=('openxr-v' + $ReleaseVersion);adapterVersion=$ReleaseVersion;backends=@('openxr','openvr');defaultBackend='openxr';unityOpenXR='1.16.1';testedValheim='1.0.16';upstreamCommit=$sourceCommit;upstreamChannel='master';baseDependencyRelease='v0.10.5';sourceManifestSha256=(Get-FileHash -LiteralPath (Join-Path $openxrRoot 'SOURCE-PROVENANCE.json')).Hash;files=@($files)} | ConvertTo-Json -Depth 6
 [IO.File]::WriteAllText((Join-Path $Destination 'openxr-manifest.json'), ($manifestJson.Replace("`r`n", "`n") + "`n"), (New-Object Text.UTF8Encoding($false)))
 Write-Output ('Built current fork payload: ' + $files.Count + ' files, upstream ' + $sourceCommit)

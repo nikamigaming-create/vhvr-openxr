@@ -1,3 +1,4 @@
+using ValheimVRMod.VRCore.Backends;
 using System.ComponentModel;
 using UnityEngine;
 using ValheimVRMod.Utilities;
@@ -262,7 +263,7 @@ namespace ValheimVRMod.Scripts
                 // The shovel deals no damage of its own, so hitting anything but terrain with it falls back to a kick.
                 if (FootCollision.Kick(collider, transform.position, physicsEstimator.GetVelocity(), speed))
                 {
-                    VRPlayer.mainWeaponHand.hapticAction.Execute(0, 0.2f, 100, 0.5f, VRPlayer.mainWeaponHandInputSource);
+                    VRInput.Haptic.Execute(0, 0.2f, 100, 0.5f, VRPlayer.mainWeaponHandInputSource);
                 }
                 return;
             }
@@ -338,11 +339,11 @@ namespace ValheimVRMod.Scripts
             {
                 if (isVanillaRightHandedWeapon)
                 {
-                    VRPlayer.mainWeaponHand.hapticAction.Execute(0, 0.2f, 100, 0.5f, VRPlayer.mainWeaponHandInputSource);
+                    VRInput.Haptic.Execute(0, 0.2f, 100, 0.5f, VRPlayer.mainWeaponHandInputSource);
                 }
                 else
                 {
-                    VRPlayer.mainWeaponHand.otherHand.hapticAction.Execute(0, 0.2f, 100, 0.5f, VRPlayer.secondaryWeaponHandInputSource);
+                    VRInput.Haptic.Execute(0, 0.2f, 100, 0.5f, VRPlayer.secondaryWeaponHandInputSource);
                 }
                 // bHaptics
                 if (!BhapticsTactsuit.suitDisabled)
@@ -398,7 +399,7 @@ namespace ValheimVRMod.Scripts
                     case EquipType.Spear:
                     case EquipType.SpearChitin:
                     case EquipType.Sword:
-                        if (!SteamVR_Actions.valheim_Grab.GetState(VRPlayer.mainWeaponHandInputSource))
+                        if (!VRInputActions.valheim_Grab.GetState(VRPlayer.mainWeaponHandInputSource))
                         {
                             return false;
                         }

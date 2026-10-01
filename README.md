@@ -1,5 +1,5 @@
-# VHVR OpenXR
-This fork packages VHVR with native OpenXR, articulated hands, solid hand/held-weapon contact and physical grabbing. [Download the v0.1.0 preview](https://github.com/nikamigaming-create/vhvr-openxr/releases/tag/openxr-v0.1.0) and read [installation, features and validation](OpenXR/README.md). This public prerelease includes upstream master through `47fad0494de5daee19356d5eb4d692671a0e3994`, checked September 29, 2026. Simulator validation passed; final physical headset acceptance is pending. BepInEx is installed separately. The VR package includes its VHVR dependencies and excludes the Nikami gameplay mod and launcher. The upstream SteamVR implementation is retained.
+# VHVR OpenXR / OpenVR
+One Valheim VR package, with a choice of native OpenXR or the original OpenVR/SteamVR runtime. Both use shared gameplay, articulated hands, solid hand/held-weapon contact and physical grabbing. [Download the v0.2.0 preview](https://github.com/nikamigaming-create/vhvr-openxr/releases/tag/openxr-v0.2.0) and read [installation and features](OpenXR/README.md), [backend architecture](OpenXR/ARCHITECTURE.md) and [validation](OpenXR/TESTED.md). This prerelease includes upstream master through `d3739391ac419c05d71563cb736aabad9cd2e0b3`, checked October 1, 2026. Physical headset acceptance is pending. Install BepInEx separately; VHVR dependencies are included. The Nikami gameplay mod and launcher are excluded.
 
 This is an experimental mod for the PC game Valheim that adds in native VR support using Unity and SteamVR with OpenVR.
 
@@ -29,7 +29,7 @@ This project contains the bulk of the code for the mod. It includes classes/Unit
 ### Requirements
 This mod requires [BepInExPack Valheim](https://valheim.thunderstore.io/package/denikson/BepInExPack_Valheim/). BepInEx is a mod framework for Unity games that allows modders to inject their code into the game's runtime. It also includes [Harmony](https://harmony.pardeike.net/articles/intro.html), which is a tool used to patch existing methods in C# libraries.
 
-Additionally, you need an HMD that supports OpenVR/SteamVR.
+Additionally, you need an HMD and tracked controllers supported by your selected PC OpenXR or OpenVR/SteamVR runtime.
 
 ### Other Info
 This is an experimental mod and almost certainly will contain a bunch of bugs and glitches. Additionally, Valheim is currently an early access game, so there is a high probability that patches will be released for the game that break this mod. Please be patient as fixes are worked on and feel free to report any issues you find :)

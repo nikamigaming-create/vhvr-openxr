@@ -12,10 +12,11 @@ using UnityEngine.XR.OpenXR;
 using UnityEngine.XR.OpenXR.Features;
 using UnityEngine.XR.OpenXR.Features.Interactions;
 using Valve.VR;
+using ValheimVRMod.VRCore.Backends;
 
 namespace Nikami.OpenXR;
 
-[BepInPlugin("nikami.openxr", "Nikami OpenXR", "0.1.0")]
+[BepInPlugin("nikami.openxr", "VHVR Backends", "0.2.0")]
 [BepInDependency("org.bepinex.plugins.valheimvrmod")]
 [DefaultExecutionOrder(-30000)]
 public sealed class OpenXRPlugin : BaseUnityPlugin
@@ -51,31 +52,43 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
     static XRDisplaySubsystem displaySubsystem;
     static XRDisplaySubsystem observedDisplay;
     bool previousRunInBackground;
+    bool usingOpenVR;
+    readonly List<XRDisplaySubsystem> nativeDisplays = new();
     void Awake()
     {
         Log = Logger;
         var arguments = Environment.GetCommandLineArgs();
         if (!Array.Exists(arguments, a => a.Equals("-ModEnabled=true", StringComparison.OrdinalIgnoreCase)) ||
-            Array.Exists(arguments, a => a.Equals("-flatScreenMode=true", StringComparison.OrdinalIgnoreCase)) ||
-            Array.Exists(arguments, a => a.Equals("-vrbackend=steamvr", StringComparison.OrdinalIgnoreCase)))
+            Array.Exists(arguments, a => a.Equals("-flatScreenMode=true", StringComparison.OrdinalIgnoreCase)))
         {
             enabled = false;
             return;
         }
-        previousRunInBackground = Application.runInBackground;
-        Application.runInBackground = true;
         var harmony = new Harmony("nikami.openxr");
         try
         {
+            var configured = Config.Bind("Runtime", "Backend", "openxr", "VR backend: openxr or openvr (steamvr alias). Restart required; -vrbackend overrides this setting.");
+            var choice = VRBackendHost.Choose(configured.Value, arguments);
+            if (choice == VRBackendKind.OpenVR)
+            {
+                VRBackendHost.Select(new OpenVRBackend());
+                usingOpenVR = true;
+                previousRunInBackground = Application.runInBackground;
+                OpenXRPhysicalHands.Install(harmony);
+                Camera.onPreRender += CountVRCameraFrame;
+                Log.LogInfo("Selected original OpenVR/SteamVR backend with shared hand/physics gameplay. OpenXR native runtime and SDK compatibility patches remain inactive.");
+                return;
+            }
+            VRBackendHost.Select(new OpenXRBackend());
+            previousRunInBackground = Application.runInBackground;
+            Application.runInBackground = true;
             RuntimeAdapter.Install(harmony);
             InputAdapter.Install(harmony);
             NikamiIntegration.Install(harmony);
-            Patch(harmony, "ValheimVRMod.VRCore.VRManager:InitializeVR", nameof(Initialize));
-            Patch(harmony, "ValheimVRMod.VRCore.VRManager:StartVR", nameof(StartVR));
             // Native OpenXR projection layers already contain the world-space GUI.
             Patch(harmony, "ValheimVRMod.Utilities.VHVRConfig:GetUseOverlayGui", nameof(NoOverlay));
             Camera.onPreRender += CountVRCameraFrame;
-            Log.LogInfo("OpenXR adapter installed. Upstream VHVR gameplay assembly is unchanged.");
+            Log.LogInfo("Selected OpenXR backend through the shared VHVR runtime/input contract.");
         }
         catch (Exception error)
         {
@@ -96,6 +109,18 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
         h.Patch(original, new HarmonyMethod(typeof(OpenXRPlugin), prefix));
     }
     static bool NoOverlay(ref bool __result) { __result = false; return false; }
+    internal static bool InitializeBackend()
+    {
+        bool result = false;
+        Initialize(ref result);
+        return result;
+    }
+    internal static bool StartBackend()
+    {
+        bool result = false;
+        StartVR(ref result);
+        return result;
+    }
     static bool Initialize(ref bool __result)
     {
         try
@@ -179,6 +204,23 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
     }
     void Update()
     {
+        if (usingOpenVR)
+        {
+            Ready = VRBackendHost.IsReady;
+            SessionStarted = VRBackendHost.IsRunning;
+            nativeDisplays.Clear();
+            SubsystemManager.GetSubsystems(nativeDisplays);
+            displaySubsystem = nativeDisplays.FirstOrDefault(display => display.running);
+            DisplayHealthy = SessionStarted && displaySubsystem != null;
+            if (displaySubsystem != null && observedDisplay != displaySubsystem)
+            {
+                if (observedDisplay != null) observedDisplay.displayFocusChanged -= OnDisplayFocusChanged;
+                observedDisplay = displaySubsystem;
+                observedDisplay.displayFocusChanged += OnDisplayFocusChanged;
+            }
+            VRBackendHost.UpdateDisplayState(VRBackendHost.Active, DisplayHealthy, DisplayFocused);
+            return;
+        }
         if (!Ready) return;
         // Update controller actions before game/UI code asks for them. The
         // upstream behaviour may update again in its own phase, but its phase
@@ -190,6 +232,7 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
             UpdateWatchdog();
             if (Input.GetKey(KeyCode.LeftControl) && Input.GetKeyDown(KeyCode.F10)) TryRecover("Ctrl+F10");
         }
+        VRBackendHost.UpdateDisplayState(VRBackendHost.Active, DisplayHealthy, DisplayFocused);
         if (Time.unscaledTime < nextReport) return;
         nextReport = Time.unscaledTime + 10;
         var display = displaySubsystem ?? Loader?.GetLoadedSubsystem<XRDisplaySubsystem>();
@@ -279,6 +322,7 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
     void OnDisplayFocusChanged(bool focused)
     {
         DisplayFocused = focused;
+        VRBackendHost.UpdateDisplayState(VRBackendHost.Active, DisplayHealthy, focused);
         Log.LogInfo("OpenXR display focus: " + focused);
     }
 
@@ -320,8 +364,7 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
         displaySubsystem = null;
         InputAdapter.Shutdown();
         SinglePassRenderer.Shutdown();
-        Loader?.Stop();
-        Loader?.Deinitialize();
+        VRBackendHost.Stop();
         Application.runInBackground = previousRunInBackground;
     }
 }

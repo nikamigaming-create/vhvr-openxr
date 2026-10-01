@@ -1,3 +1,4 @@
+using ValheimVRMod.VRCore.Backends;
 using System.Collections.Generic;
 using UnityEngine;
 using ValheimVRMod.VRCore;
@@ -37,17 +38,17 @@ namespace ValheimVRMod.Scripts
             get { return IsItemInRightHand ? VRPlayer.rightPointer : VRPlayer.leftPointer; }
         }
 
-        private SteamVR_Input_Sources ItemHandInputSource
+        private VRInputSource ItemHandInputSource
         {
-            get { return IsItemInRightHand ? SteamVR_Input_Sources.RightHand : SteamVR_Input_Sources.LeftHand; }
+            get { return IsItemInRightHand ? VRInputSource.RightHand : VRInputSource.LeftHand; }
         }
 
         // The hand raised to summon is the one not holding the item.
         private bool IsGestureHandRight { get { return !IsItemInRightHand; } }
         private Hand GestureHand { get { return IsGestureHandRight ? VRPlayer.rightHand : VRPlayer.leftHand; } }
-        private SteamVR_Input_Sources GestureHandInputSource
+        private VRInputSource GestureHandInputSource
         {
-            get { return IsGestureHandRight ? SteamVR_Input_Sources.RightHand : SteamVR_Input_Sources.LeftHand; }
+            get { return IsGestureHandRight ? VRInputSource.RightHand : VRInputSource.LeftHand; }
         }
         private void Awake()
         {
@@ -65,7 +66,7 @@ namespace ValheimVRMod.Scripts
         private void FixedUpdate()
         {
             var inputSource = GestureHandInputSource;
-            if (!LaserPointerChords.IsLaserActiveFor(inputSource) && SteamVR_Actions.valheim_Use.GetState(inputSource))
+            if (!LaserPointerChords.IsLaserActiveFor(inputSource) && VRInputActions.valheim_Use.GetState(inputSource))
             {
                 if (hasSummonedInCurrentMotion)
                 {
@@ -87,7 +88,7 @@ namespace ValheimVRMod.Scripts
                 if (physicsEstimator.GetVelocity().y > MIN_SUMMONING_HAND_SPEED)
                 {
                     summonTimer += Time.fixedDeltaTime;
-                    GestureHand.hapticAction.Execute(0, 0.1f, 50, 0.3f, inputSource);
+                    VRInput.Haptic.Execute(0, 0.1f, 50, 0.3f, inputSource);
                 }
 
                 if (summonTimer > SUMMON_TIME)
