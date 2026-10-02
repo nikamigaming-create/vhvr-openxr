@@ -1,32 +1,52 @@
 # Shared gameplay and selectable VR backends
 
-Version 0.2.0 uses one payload and one rebuilt gameplay DLL. The companion selects `openxr` or `openvr` before VHVR initializes its runtime. Selection is fixed for the process; there is no live runtime switch or automatic fallback.
+Release 0.3.0 uses one payload and one rebuilt gameplay DLL. The companion selects `openxr` or `openvr` before VHVR initializes its runtime. Selection is fixed for the process; there is no live runtime switch or automatic fallback. See `TESTED.md` for validation and physical headset limits.
 
 ## Ownership and boundary
 
 | Layer | Source | Responsibility |
 |---|---|---|
-| Shared contract | `ValheimVRMod/VRCore/Backends/IVRBackend.cs` | SDK-free runtime/input interfaces using Unity values, action paths and neutral input sources |
+| Shared contract | `ValheimVRMod/VRCore/Backends/IVRBackend.cs`, `VRRig.cs` | SDK-free runtime, input and rig interfaces using Unity values, action paths and neutral input sources |
 | Shared action facade | `VRInput.cs`, `VRInputActions.cs` | Digital edges, axes, poses/velocities, binding state, action sets, update callbacks and haptics used by gameplay |
 | Runtime host | `VRBackendHost`, `VRCore/VRManager.cs` | Selected backend lifecycle, startup lock and display/focus gates |
-| Original OpenVR implementation | `Backends/OpenVRRuntime.cs`, `SteamVRInputBackend.cs` | Upstream OpenVR loader/init/mirror behavior and the Valve SDK input adapter |
-| OpenXR implementation | `OpenXR/src/nikami-openxr/OpenXRBackend.cs`, `OpenXRPlugin.cs`, `RuntimeAdapter.cs`, `InputAdapter.cs` | Unity OpenXR lifecycle, live native controller reads, authored rig compatibility and session recovery |
-| Shared hand/object physics | `OpenXR/src/shared-gameplay/` | Articulation, swept hand/equipment contact, impact policy, native object/creature forces and release policy, installed for either backend |
+| Shared rig components | `VRRig.cs`, `VRLaserPointer.cs`, `VRFade.cs`, `VRShaders.cs` | Head/hand transforms, pose publication, velocities, pointers, fades and shader access |
+| Original OpenVR implementation | `Backends/OpenVRRuntime.cs`, `SteamVRInputBackend.cs`, `OpenVRRigBackend.cs` | Upstream OpenVR loader/init/mirror behavior, Valve SDK input and authored rig; publishes poses into the shared rig |
+| Native OpenXR implementation | `OpenXR/src/nikami-openxr/OpenXRBackend.cs`, `OpenXRPlugin.cs`, `InputAdapter.cs`, `OpenXRRigBackend.cs` | Unity OpenXR lifecycle, direct Input System controller/action reads and an independently constructed rig |
+| OpenXR presentation | `RuntimeAdapter.cs` | Unity camera, rendering and scene-lifetime corrections; session recovery remains in the plugin |
+| Optional hand/object physics | `OpenXR/src/shared-gameplay/` | Articulation, swept hand/equipment contact, impact policy, native object/creature forces and release policy; four independent opt-ins, off by default |
 | Shared recenter policy | `Backends/VRRecenter.cs` | Active Unity XR input subsystem recenter plus the existing VHVR roomscale/pelvis/height policy |
 
-Combat, locomotion, building, interaction and menu action consumers use the neutral facade. The OpenVR provider delegates to the original SDK. The OpenXR provider currently reuses Valve's managed action/event machinery through a compatibility bridge, while native Unity OpenXR supplies rendering and controller values. This keeps the existing authored rig and action update ordering; it does not initialize OpenVR's native compositor in OpenXR mode.
+Combat, locomotion, building, interaction and menu consumers use the neutral facade and shared `VRHand`, `VRPoseDriver` and pointer components. The OpenVR provider delegates to the original SDK. The OpenXR provider implements the input interface directly: action paths resolve to native Input System controls, digital edges and callbacks are sampled once per game frame, and poses refresh during input and before render. Native tracking state validates a pose; stale nonzero positions cannot keep a grip alive.
 
-In OpenVR mode the companion does not install OpenXR loader, settings or CVR interception patches. It installs the same shared hand/physics gameplay and observes the original native display's focus. Invalid selection or failed runtime initialization cannot fall back to another backend.
+OpenXR creates its head and hand objects directly. It never instantiates the Valve player prefab or creates Valve hand, pose, pointer, render-model or runtime behaviours. The former fake SteamVR runtime and CVRInput interception are removed. The companion itself has no SteamVR assembly reference. Its historical DLL name and plugin identifier remain compatible with existing installations.
 
-## Remaining SDK integration
+In OpenVR mode the companion selects the original loader and authored rig. The OpenVR rig provider copies native pose publication into the shared components, so gameplay does not need Valve hand types. The companion observes that display's focus and installs optional gameplay only when selected. Invalid selection or failed initialization cannot fall back to another backend.
 
-This is an input/lifecycle abstraction, not removal of every SteamVR type from VHVR. The authored `Hand`/`Player` prefab integration, tracked-pose components, fades, optional OpenVR overlay/keyboard and SteamVR body tracker provider remain SDK-specific. Shared physics has authored rig hook signatures using those components; its contact/force rules and action reads use the neutral contract. Historical `OpenXR*` class names and the `Nikami.OpenXR.dll` identifier are retained.
+## Optional services and packaged libraries
 
-OpenXR binding-editor support is explicitly unavailable. OpenXR uses world-space GUI and packaged bindings. Optional OpenVR overlay/keyboard and tracker features are retained on their original backend; native OpenXR equivalents require further implementation and validation. A future provider can replace runtime/action implementations without rewriting shared gameplay consumers, but replacing the authored rig or implementing those optional services also needs integration work.
+The single package retains Valve SDK/controller assemblies, authored assets and shader names for its OpenVR backend. Deserializing an asset or using a shader named `SteamVR_*` is different from executing Valve runtime/input code. OpenXR's input and rig paths do not execute that SDK. `Valve.Newtonsoft.Json` is the game's JSON library, used to read the upstream binding file.
+
+OpenXR uses world-space GUI and packaged bindings. SteamVR's overlay keyboard, binding editor, mirror modes and body-tracker provider remain OpenVR services. OpenXR text fields keep their native panel and accept a physical keyboard; they do not start a SteamVR overlay keyboard. Optical hand tracking and native OpenXR body tracking are not implemented. These services are explicit feature gaps, not a hidden managed input bridge.
+
+The optional Nikami gameplay integration was removed. The package supplies VHVR and its runtime providers; it does not contain a Nikami gameplay mod or launcher.
+
+## Added gameplay options
+
+The companion binds these settings in `BepInEx/config/nikami.openxr.cfg`, for either backend:
+
+```ini
+[Gameplay]
+EnablePhysicalContact = false
+EnablePhysicalGrabbing = false
+EnableCreatureGrabbing = false
+EnableFingerArticulation = false
+```
+
+Restart after changing them. With all four disabled, no added physics/finger hooks are installed. Contact enables added hand/weapon constraints and impact feedback. Item grabbing enables loose-item spring forces and throwing. Creature grabbing enables eligible creature restraint/repelling. Finger articulation enables controller-driven native joints and contact curl. Each option gates its own behavior; none implies the others. Upstream combat collision, climbing and other original gameplay remain part of VHVR.
 
 ## Keeping upstream current
 
-The release records upstream master `d3739391ac419c05d71563cb736aabad9cd2e0b3`. The main gameplay changes are action/source/haptic substitutions and the small startup guard for the unused walking indicator. Runtime initialization was extracted from upstream `VRManager` into `OpenVRRuntime`; subsequent upstream loader or mirror fixes must be carried into that file.
+The release merges upstream master `c267f9d75dad21f1eac5c372d48c5a6f38003faa`, nine commits newer than release 0.2.0, checked October 1, 2026. Shared gameplay changes are predominantly action/source/haptic and head/hand/pointer substitutions. Runtime initialization was extracted from upstream `VRManager` into `OpenVRRuntime`; subsequent upstream loader or mirror fixes must be carried into that file.
 
 After merging a new upstream snapshot:
 
@@ -36,7 +56,7 @@ After merging a new upstream snapshot:
 4. Build the single package, run contract checks, then exercise both native startup paths and the interaction acceptance suite. Do not infer one runtime's hardware behavior from the other.
 5. Record the exact source and DLL hashes in `SOURCE-PROVENANCE.json`, the package manifest and `TESTED.md`.
 
-This avoids freezing the fork to the old runtime, but upstream API changes still require review. A contract does not make future merges automatically conflict-free.
+Upstream developers can continue their work. This fork merges their commits, reviews new SDK calls at the boundary, and tests both providers. Upstream can adopt the abstraction independently of the optional physics. The interfaces do not make arbitrary future merges automatic or conflict-free. Replacing this fork's gameplay DLL with an unmodified upstream DLL is unsupported: the companion expects the shared contracts compiled into the fork.
 
 ## Production contract checks
 
