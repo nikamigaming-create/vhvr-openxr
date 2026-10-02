@@ -66,7 +66,7 @@ namespace ValheimVRMod.VRCore.Backends
         public bool isActive => Pose && Pose.State.Connected;
         public bool isPoseValid => Pose && Pose.isValid;
         public void SetVisibility(bool visible) { Visibility?.Invoke(visible); }
-        public Vector3 GetTrackedObjectVelocity() => Pose ? (Pose.origin ? Pose.origin.TransformDirection(Pose.GetVelocity()) : Pose.GetVelocity()) : Vector3.zero;
+        public Vector3 GetTrackedObjectVelocity() => Pose ? (Pose.origin ? Pose.origin.TransformVector(Pose.GetVelocity()) : Pose.GetVelocity()) : Vector3.zero;
         public Vector3 GetTrackedObjectAngularVelocity() => Pose ? (Pose.origin ? Pose.origin.TransformDirection(Pose.GetAngularVelocity()) : Pose.GetAngularVelocity()) : Vector3.zero;
     }
 

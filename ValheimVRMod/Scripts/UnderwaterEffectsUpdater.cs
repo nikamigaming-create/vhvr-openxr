@@ -15,6 +15,8 @@ namespace ValheimVRMod.Scripts
         private GameObject underwaterOverlay;
         private Material underwaterOverlayMaterial;
         private GameObject underwaterLightBlocker = null;
+        private Material ownedLightBlockerMaterial;
+        private Texture2D ownedLightBlockerWindowTexture;
         // See VHVRConfig.UnderwaterWaveResolution(): 0 and 1 use the flat quad, higher values the wave following grid.
         private MeshFilter lightBlockerMeshFilter;
         private Mesh lightBlockerQuadMesh;
@@ -49,6 +51,7 @@ namespace ValheimVRMod.Scripts
 
         public void Init(Camera camera, PostProcessingBehaviour postProcessingBehaviour, PostProcessingProfile originalPostProcessingProfile)
         {
+            ReleaseOwnedResources();
             this.camera = camera;
 
             underwaterOverlay = GameObject.CreatePrimitive(PrimitiveType.Quad);
@@ -61,7 +64,7 @@ namespace ValheimVRMod.Scripts
             var underwaterOverlayRenderer = underwaterOverlay.GetComponent<MeshRenderer>();
             underwaterOverlayMaterial = GameObject.Instantiate(VRAssetManager.GetAsset<Material>("VHVRMultiply"));
             underwaterOverlayMaterial.color = UNDER_WATER_OVERLAY_COLOR;
-            underwaterOverlayRenderer.material = underwaterOverlayMaterial;
+            underwaterOverlayRenderer.sharedMaterial = underwaterOverlayMaterial;
             underwaterOverlayRenderer.receiveShadows = false;
             underwaterOverlayRenderer.shadowCastingMode = ShadowCastingMode.Off;
             underwaterOverlayRenderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
@@ -85,9 +88,10 @@ namespace ValheimVRMod.Scripts
             {
                 lightBlockerMaterial = VRAssetManager.GetAsset<Material>("StandardClone");
             }
-            underwaterLightBlockerRenderer.material = Instantiate(lightBlockerMaterial);
-            underwaterLightBlockerRenderer.material.color = Color.white;
-            underwaterLightBlockerRenderer.material.mainTexture = CreateLightBlockerWindowTexture();
+            ownedLightBlockerMaterial = Instantiate(lightBlockerMaterial);
+            ownedLightBlockerMaterial.color = Color.white;
+            ownedLightBlockerMaterial.mainTexture = CreateLightBlockerWindowTexture();
+            underwaterLightBlockerRenderer.sharedMaterial = ownedLightBlockerMaterial;
             underwaterLightBlockerRenderer.receiveShadows = false;
             underwaterLightBlockerRenderer.shadowCastingMode = ShadowCastingMode.Off;
             underwaterLightBlockerRenderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
@@ -96,6 +100,32 @@ namespace ValheimVRMod.Scripts
             underwaterLightBlocker.SetActive(false);
 
             initialized = true;
+        }
+
+        private void OnDestroy()
+        {
+            ReleaseOwnedResources();
+            camera = null;
+        }
+
+        private void ReleaseOwnedResources()
+        {
+            initialized = false;
+            Destroy(underwaterOverlay);
+            Destroy(underwaterLightBlocker);
+            Destroy(underwaterOverlayMaterial);
+            Destroy(ownedLightBlockerMaterial);
+            Destroy(ownedLightBlockerWindowTexture);
+            Destroy(lightBlockerGridMesh);
+            underwaterOverlay = underwaterLightBlocker = null;
+            underwaterOverlayMaterial = ownedLightBlockerMaterial = null;
+            ownedLightBlockerWindowTexture = null;
+            lightBlockerGridMesh = null;
+            lightBlockerMeshFilter = null;
+            lightBlockerQuadMesh = null;
+            lightBlockerGridResolution = 0;
+            lightBlockerGridVertices = null;
+            lightBlockerGridOffsets = null;
         }
 
         void FixedUpdate()
@@ -150,10 +180,11 @@ namespace ValheimVRMod.Scripts
         // quickly turning into the blocker's color further out, like the Snell's window real water shows from below.
         // Its texture coordinates are scaled so that the texture's inscribed circle is LIGHT_BLOCKER_WINDOW_DARK_RATIO
         // times the clear radius, see UpdateLightBlockerWindow().
-        private static Texture2D CreateLightBlockerWindowTexture()
+        private Texture2D CreateLightBlockerWindowTexture()
         {
             const int size = 64;
             var texture = new Texture2D(size, size, TextureFormat.RGBA32, /* mipChain= */ false);
+            ownedLightBlockerWindowTexture = texture;
             texture.wrapMode = TextureWrapMode.Clamp;
             texture.filterMode = FilterMode.Bilinear;
             var pixels = new Color[size * size];
@@ -178,7 +209,7 @@ namespace ValheimVRMod.Scripts
             // About the radius of Snell's window at this depth, but never too small to see when near the surface.
             var clearRadius = Mathf.Max(LIGHT_BLOCKER_WINDOW_MIN_RADIUS, LIGHT_BLOCKER_WINDOW_RADIUS_PER_DEPTH * eyeDepth);
             var darkRadius = clearRadius * LIGHT_BLOCKER_WINDOW_DARK_RATIO;
-            var material = underwaterLightBlocker.GetComponent<MeshRenderer>().material;
+            var material = ownedLightBlockerMaterial;
             // The grid's texture coordinates are meters from the eyes, the quad's span its 1024 meters from 0 to 1.
             var scale = (isGrid ? 1 : 1024) / (2 * darkRadius);
             var offset = isGrid ? 0.5f : 0.5f - 0.5f * scale;

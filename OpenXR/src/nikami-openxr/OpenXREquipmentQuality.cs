@@ -16,12 +16,15 @@ internal static class OpenXREquipmentQuality
     static readonly List<Renderer> Renderers = new();
     static readonly List<Material> Materials = new();
     static readonly string[] Maps = { "_MainTex", "_BumpMap", "_MetallicGlossMap", "_SpecGlossMap" };
+    static bool installed;
 
     internal static void Install(Harmony harmony)
     {
+        if (installed) return;
         harmony.Patch(AccessTools.Method(typeof(VisEquipment), "AttachItem"),
             postfix: new HarmonyMethod(typeof(OpenXREquipmentQuality), nameof(AttachedItem)));
-        Application.quitting += Restore;
+        Application.quitting += Shutdown;
+        installed = true;
     }
 
     static void AttachedItem(VisEquipment __instance, GameObject __result, int itemHash, Transform joint, bool enableEquipEffects, bool backAttach)
@@ -56,8 +59,9 @@ internal static class OpenXREquipmentQuality
             OpenXRPlugin.Log.LogInfo($"OpenXR held-item sampling: {Originals.Count - before} native textures use trilinear filtering and 8x anisotropy.");
     }
 
-    static void Restore()
+    internal static void Shutdown()
     {
+        Application.quitting -= Shutdown;
         foreach (var pair in Originals)
             if (pair.Key)
             {
@@ -65,5 +69,7 @@ internal static class OpenXREquipmentQuality
                 pair.Key.anisoLevel = pair.Value.Anisotropy;
             }
         Originals.Clear();
+        Renderers.Clear(); Materials.Clear();
+        installed = false;
     }
 }

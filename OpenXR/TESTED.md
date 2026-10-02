@@ -1,5 +1,19 @@
 # VHVR OpenXR / OpenVR validation
 
+## Code sweep candidate
+
+Checked October 1, 2026 after `7e1475a`, using upstream `c267f9d75dad21f1eac5c372d48c5a6f38003faa`. This is a new local candidate. The published 0.3.0 package is unchanged.
+
+- Reviewed input, rig, optional physics, rendering, UI, resource ownership and packaging. No new unbounded world scan found. The underwater grid stays bounded by its existing resolution limit.
+- Fixed skipped input edges, stale velocity after tracking loss, failed-grab cleanup, finger-only climbing hooks and the shield/base render callback guard.
+- Removed repeated input/bow allocations, idle bounds work, unused diagnostics and the duplicate scene-resource owner. Added cleanup for owned materials, textures, meshes, cameras, components and callbacks.
+- **236 managed checks pass:** 150 backend contracts, 41 input checks, 31 grab lifecycle checks and 14 render/focus checks. Packaging checks accept matching versions and listed files, reject mismatched versions and stale/hidden plugins, and preserve files.
+- The warmed input allocation workload dropped from **432,000 bytes to zero over 500 frames** against the prior adapter. This measures the managed test workload, not native frame time.
+- The complete package builds with zero errors. Unity/SDK compatibility and legacy source warnings remain. All **118 runtime hashes and 87 source hashes** pass: 12 adapter, seven shared gameplay and 68 core corrections. The compiled companion has no SteamVR assembly reference or dormant single-pass renderer.
+- Gameplay SHA-256: `C7F5EF28ACE5B7450AA729C008293706F0573F61B1136524CC69BEDDFCBD1088`; companion SHA-256: `E10E934A29F80DB0C27C6A87D199CBC36FB441665DE748615DB0B7DF9E4E62F2`.
+
+Native acceptance has not been repeated for these DLLs. Test repeated UI/equipment cycles, underwater effects, scaled rig velocity, startup/shutdown and physical hand/controller behavior. The earlier native results below apply to their recorded DLLs.
+
 ## Unreleased source cleanup after 0.3.0
 
 Checked October 1, 2026 against the same upstream `c267f9d75dad21f1eac5c372d48c5a6f38003faa`; upstream master was rechecked and had not advanced. The legacy build entry point produced the complete 118-file payload. All payload hashes and 83 source provenance entries were verified (11 adapter, seven optional gameplay and 65 core corrections).

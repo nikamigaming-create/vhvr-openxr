@@ -6,9 +6,12 @@ namespace Nikami.OpenXR;
 internal static class OpenXRInputFocus
 {
     static bool lostDesktopFocus;
+    static bool installed;
 
     internal static void Install()
     {
+        if (installed) return;
+        installed = true;
         Application.focusChanged += FocusChanged;
         Application.quitting += Shutdown;
     }
@@ -41,10 +44,11 @@ internal static class OpenXRInputFocus
         OpenXRPlugin.Log.LogInfo("OpenXR input focus restored: released chat capture; unsent text retained.");
     }
 
-    static void Shutdown()
+    internal static void Shutdown()
     {
         Application.focusChanged -= FocusChanged;
         Application.quitting -= Shutdown;
         lostDesktopFocus = false;
+        installed = false;
     }
 }

@@ -39,7 +39,7 @@
     },
     {
       "path": "ValheimVRMod/Scripts/BowLocalManager.cs",
-      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
+      "reason": "Route input through shared contracts, reuse the fixed-size prediction buffer and release owned bow indicators and materials."
     },
     {
       "path": "ValheimVRMod/Scripts/BuildingManager.cs",
@@ -107,7 +107,7 @@
     },
     {
       "path": "ValheimVRMod/Scripts/QuickAbstract.cs",
-      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
+      "reason": "Use shared input/hand contracts and release only the quick menu textures, sprites and material it creates."
     },
     {
       "path": "ValheimVRMod/Scripts/Reining.cs",
@@ -151,7 +151,7 @@
     },
     {
       "path": "ValheimVRMod/Utilities/PhysicsEstimator.cs",
-      "reason": "Use neutral tracked-hand velocities without depending on the Valve hand class."
+      "reason": "Use neutral tracked-hand velocities and release the owned debug renderer and material through OnDestroy."
     },
     {
       "path": "ValheimVRMod/Utilities/Pose.cs",
@@ -183,7 +183,7 @@
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/OpenVRRuntime.cs",
-      "reason": "Preserve upstream OpenVR initialization and mirror behavior in the runtime-specific implementation."
+      "reason": "Preserve upstream OpenVR initialization and mirror behavior; share recenter policy and remove unused diagnostic helpers."
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/SteamVRInputBackend.cs",
@@ -203,7 +203,7 @@
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/VRLaserPointer.cs",
-      "reason": "Preserve upstream pointer behavior using the neutral input and pose contracts; retain upstream attribution."
+      "reason": "Preserve upstream pointer behavior using neutral input/pose contracts; cache and release its owned renderer, material and objects."
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/VRLog.cs",
@@ -215,7 +215,7 @@
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/VRRig.cs",
-      "reason": "Shared hand/head/pose publication without optional gameplay policy."
+      "reason": "Shared hand/head/pose publication without optional gameplay policy; preserve origin scale in linear velocity transforms."
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/VRShaders.cs",
@@ -239,7 +239,7 @@
     },
     {
       "path": "ValheimVRMod/VRCore/UI/VRGUI.cs",
-      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
+      "reason": "Use shared input/rig contracts, reuse the owned GUI camera, and release its render targets without changing borrowed canvases."
     },
     {
       "path": "ValheimVRMod/VRCore/UI/VRHud.cs",
@@ -260,6 +260,18 @@
     {
       "path": "ValheimVRMod/VRCore/VRPlayer.cs",
       "reason": "Instantiate the selected rig provider; use neutral hand, head, pointer and fade values; keep body tracking on its original OpenVR provider."
+    },
+    {
+      "path": "ValheimVRMod/Scripts/Outline.cs",
+      "reason": "Release only the per-instance outline materials when the component is destroyed."
+    },
+    {
+      "path": "ValheimVRMod/Scripts/UnderwaterEffectsUpdater.cs",
+      "reason": "Release owned underwater objects, material clones, texture and generated grid mesh; keep borrowed camera, quad and assets."
+    },
+    {
+      "path": "ValheimVRMod/Scripts/EquipBoundingBoxFix.cs",
+      "reason": "Skip body lookup and temporary corner allocation when no equipment bounds need fixing."
     }
   ]
 }

@@ -1,6 +1,5 @@
 using ValheimVRMod.VRCore.Backends;
 using System;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using ValheimVRMod.Utilities;
@@ -18,6 +17,11 @@ namespace ValheimVRMod.Scripts {
         private GameObject chargeIndicator;
         private GameObject drawIndicator;
         private LineRenderer predictionLine;
+        private GameObject predictionLineObject;
+        private Material predictionMaterial;
+        private Material chargeMaterial;
+        private Material drawMaterial;
+        private readonly Vector3[] predictionPoints = new Vector3[20];
         private float fullDrawLength { get { return Mathf.Max(VHVRConfig.GetBowFullDrawLength(), GetBraceHeight() + 0.1f); } }
         private float projectileVel;
         private float projectileVelMin;
@@ -44,11 +48,13 @@ namespace ValheimVRMod.Scripts {
             instance = this;
             arrowAttach = new GameObject();
             arrowHandTransform = VRPlayer.arrowHand.transform;
-            predictionLine = new GameObject().AddComponent<LineRenderer>();
+            predictionLineObject = new GameObject();
+            predictionLine = predictionLineObject.AddComponent<LineRenderer>();
             predictionLine.widthMultiplier = 0.03f;
             predictionLine.positionCount = 20;
-            predictionLine.material = Instantiate(VRAssetManager.GetAsset<Material>("Unlit"));
-            predictionLine.material.color = Color.white;
+            predictionMaterial = Instantiate(VRAssetManager.GetAsset<Material>("Unlit"));
+            predictionMaterial.color = Color.white;
+            predictionLine.sharedMaterial = predictionMaterial;
             predictionLine.enabled = false;
             predictionLine.receiveShadows = false;
             predictionLine.shadowCastingMode = ShadowCastingMode.Off;
@@ -69,13 +75,23 @@ namespace ValheimVRMod.Scripts {
         }
 
         protected new void OnDestroy() {
-            base.OnDestroy();
-            destroyArrow();
-            destroyPausedCosmeticArrow();
-            Destroy(predictionLine);
-            Destroy(arrowAttach);
-            Destroy(chargeIndicator);
-            Destroy(drawIndicator);
+            try {
+                base.OnDestroy();
+            } finally {
+                Destroy(predictionLineObject);
+                Destroy(predictionMaterial);
+                Destroy(chargeMaterial);
+                Destroy(drawMaterial);
+                predictionLineObject = null;
+                predictionLine = null;
+                predictionMaterial = chargeMaterial = drawMaterial = null;
+                Destroy(arrowAttach);
+                Destroy(chargeIndicator);
+                Destroy(drawIndicator);
+                arrowAttach = chargeIndicator = drawIndicator = null;
+                destroyArrow();
+                destroyPausedCosmeticArrow();
+            }
         }
 
         protected override bool OnlyUseDominantHand()
@@ -256,18 +272,16 @@ namespace ValheimVRMod.Scripts {
             Vector3 vel = aimDir * Mathf.Lerp(projectileVelMin, projectileVel, isBowDrawable ? pullPercentage():1);
 
             float stepLength = 0.1f;
-            float stepSize = 20;
             Vector3 pos = getArrowRestPosition();
-            List<Vector3> pointList = new List<Vector3>();
 
-            for (int i = 0; i < stepSize; i++) {
-                pointList.Add(pos);
+            for (int i = 0; i < predictionPoints.Length; i++) {
+                predictionPoints[i] = pos;
                 vel += Vector3.down * gravity * stepLength;
                 pos += vel * stepLength;
             }
 
-            predictionLine.positionCount = 20;
-            predictionLine.SetPositions(pointList.ToArray());
+            predictionLine.positionCount = predictionPoints.Length;
+            predictionLine.SetPositions(predictionPoints);
         }
 
         private void handlePulling() {
@@ -513,8 +527,9 @@ namespace ValheimVRMod.Scripts {
             chargeIndicator.layer = LayerUtils.getWorldspaceUiLayer();
             chargeIndicator.SetActive(false);
             var chargeIndicatorRendrer = chargeIndicator.GetComponent<MeshRenderer>();
-            chargeIndicatorRendrer.material = Instantiate(VRAssetManager.GetAsset<Material>("Unlit"));
-            chargeIndicatorRendrer.material.color = new Vector4(0.5f, 0.5f, 0, 0.5f);
+            chargeMaterial = Instantiate(VRAssetManager.GetAsset<Material>("Unlit"));
+            chargeMaterial.color = new Vector4(0.5f, 0.5f, 0, 0.5f);
+            chargeIndicatorRendrer.sharedMaterial = chargeMaterial;
             chargeIndicatorRendrer.receiveShadows = false;
             chargeIndicatorRendrer.shadowCastingMode = ShadowCastingMode.Off;
             chargeIndicatorRendrer.lightProbeUsage = LightProbeUsage.Off;
@@ -529,8 +544,9 @@ namespace ValheimVRMod.Scripts {
             drawIndicator.layer = LayerUtils.getWorldspaceUiLayer();
             drawIndicator.SetActive(false);
             var drawIndicatorRendrer = drawIndicator.GetComponent<MeshRenderer>();
-            drawIndicatorRendrer.material = Instantiate(VRAssetManager.GetAsset<Material>("Unlit"));
-            drawIndicatorRendrer.material.color = new Vector4(0.5f, 0.5f, 0, 0.5f);
+            drawMaterial = Instantiate(VRAssetManager.GetAsset<Material>("Unlit"));
+            drawMaterial.color = new Vector4(0.5f, 0.5f, 0, 0.5f);
+            drawIndicatorRendrer.sharedMaterial = drawMaterial;
             drawIndicatorRendrer.receiveShadows = false;
             drawIndicatorRendrer.shadowCastingMode = ShadowCastingMode.Off;
             drawIndicatorRendrer.lightProbeUsage = LightProbeUsage.Off;

@@ -11,6 +11,11 @@ $openxrRoot = Split-Path $PSScriptRoot -Parent
 $repoRoot = Split-Path $openxrRoot -Parent
 $forkPolicy = Get-Content -LiteralPath (Join-Path $openxrRoot 'FORK-CHANGES.json') -Raw | ConvertFrom-Json
 $allowedChanges = @($forkPolicy.changes.path)
+function AssertPluginVersion([string]$PluginSource, [string]$ExpectedVersion) {
+    $attribute = [regex]::Match([IO.File]::ReadAllText($PluginSource), '\[BepInPlugin\("nikami\.openxr",\s*"[^"]+",\s*"([^"]+)"\)\]')
+    if (!$attribute.Success -or $attribute.Groups[1].Value -ne $ExpectedVersion) { throw 'ReleaseVersion must match the OpenXR plugin version in source.' }
+}
+AssertPluginVersion (Join-Path $openxrRoot 'src/nikami-openxr/OpenXRPlugin.cs') $ReleaseVersion
 $cache = Join-Path $env:LOCALAPPDATA 'VHVR-OpenXR/dependencies'
 if (!$Destination) { $Destination = Join-Path $openxrRoot 'dist/current-fork' }
 if (!$BaseVHVRArchive) {
@@ -70,6 +75,15 @@ function CopyPayload([string]$Source, [string]$Relative) {
     Copy-Item -LiteralPath $Source -Destination $target -Force
     $manifestFiles[$Relative.Replace('\','/')] = $target
 }
+function AssertPayloadFiles([string]$PayloadRoot, [System.Collections.IDictionary]$ExpectedFiles) {
+    $prefix = [IO.Path]::GetFullPath($PayloadRoot).TrimEnd('\') + '\'
+    $expected = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($relative in $ExpectedFiles.Keys) { [void]$expected.Add($relative.Replace('\', '/')) }
+    foreach ($file in Get-ChildItem -LiteralPath $PayloadRoot -File -Recurse -Force) {
+        $relative = $file.FullName.Substring($prefix.Length).Replace('\', '/')
+        if (!$expected.Contains($relative)) { throw ('Unmanifested payload file; use a clean build destination: ' + $relative) }
+    }
+}
 # Use only redistributed VHVR runtime dependencies. Owned Valheim assemblies,
 # BepInEx loader files, existing user settings and QA helpers never enter here.
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -103,6 +117,7 @@ CopyPayload (Join-Path $openxrRoot 'tools/OpenXR.Runtime/bin/Release/netstandard
 CopyPayload (Join-Path $OpenXRPackage 'Runtime/windows/x64/UnityOpenXR.dll') 'Valheim_Data/Plugins/x86_64/UnityOpenXR.dll'
 CopyPayload (Join-Path $OpenXRPackage 'RuntimeLoaders/windows/x64/openxr_loader.dll') 'Valheim_Data/Plugins/x86_64/openxr_loader.dll'
 CopyPayload (Join-Path $OpenXRPackage 'Runtime/UnitySubsystemsManifest.json') 'Valheim_Data/UnitySubsystems/UnityOpenXR/UnitySubsystemsManifest.json'
+AssertPayloadFiles $payload $manifestFiles
 $sources = foreach ($file in Get-ChildItem -LiteralPath (Join-Path $openxrRoot 'src/nikami-openxr') -Filter '*.cs' -File) { [pscustomobject]@{name=$file.Name;sha256=(Get-FileHash -LiteralPath $file.FullName).Hash} }
 $corrections = foreach ($path in $upstreamChanges) { [pscustomobject]@{path=$path;sha256=(Get-FileHash -LiteralPath (Join-Path $repoRoot $path)).Hash;reason=($forkPolicy.changes | Where-Object {$_.path -eq $path}).reason} }
 $sharedSources = foreach ($file in Get-ChildItem -LiteralPath (Join-Path $openxrRoot 'src/shared-gameplay') -Filter '*.cs' -File) { [pscustomobject]@{path=('OpenXR/src/shared-gameplay/' + $file.Name);sha256=(Get-FileHash -LiteralPath $file.FullName).Hash} }

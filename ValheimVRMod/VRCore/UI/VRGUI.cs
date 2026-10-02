@@ -132,6 +132,9 @@ namespace ValheimVRMod.VRCore.UI
         // What onCameraPreCull() hid from the camera being rendered, for onCameraPostRender() to show again.
         private readonly List<Renderer> hiddenFromCurrentCamera = new List<Renderer>();
         private Camera _guiCamera;
+        private GameObject _ownedGuiCameraObject;
+        private readonly Dictionary<Canvas, Camera> originalGuiCameras = new Dictionary<Canvas, Camera>();
+        private readonly List<Canvas> destroyedGuiCanvases = new List<Canvas>();
         private List<Canvas> _guiCanvases = new List<Canvas>();
         private Canvas _cursorGuiCanvas;
         private Canvas _hudGuiCanvas;
@@ -221,7 +224,7 @@ namespace ValheimVRMod.VRCore.UI
             showingChatBox = _chatBox != null && _chatBox.isActiveAndEnabled;
             if (!wasShowingChatBox && showingChatBox)
             {
-                _chatBox.worldCamera = _guiCamera;
+                setGuiCanvasCamera(_chatBox);
                 _chatBox.renderMode = RenderMode.WorldSpace;
                 _chatBox.GetComponent<RectTransform>().anchoredPosition = new Vector2(GUI_DIMENSIONS.x / 2, GUI_DIMENSIONS.y / 2);
             }
@@ -353,7 +356,33 @@ namespace ValheimVRMod.VRCore.UI
             Camera.onPostRender -= onCameraPostRender;
             showHiddenRenderers();
             setUiPanelCameraAnchored(false);
+            if (_guiCamera != null) _guiCamera.enabled = false;
             destroyOverlay();
+        }
+
+        private void OnDestroy()
+        {
+            OnDisable();
+            if (_leftPointer != null) _leftPointer.PointerTracking -= OnPointerTrackingLeftHand;
+            if (_rightPointer != null) _rightPointer.PointerTracking -= OnPointerTracking;
+            foreach (var entry in originalGuiCameras)
+            {
+                if (entry.Key != null && entry.Key.worldCamera == _guiCamera)
+                    entry.Key.worldCamera = entry.Value != null ? entry.Value : null;
+            }
+            originalGuiCameras.Clear();
+            destroyedGuiCanvases.Clear();
+            if (_guiCamera != null && _guiCamera.targetTexture == _guiTexture)
+                _guiCamera.targetTexture = null;
+            replaceUiPanelTexture(_guiTexture, null);
+            releaseRenderTexture(_guiTexture);
+            _guiTexture = null;
+            if (_ownedGuiCameraObject != null) Destroy(_ownedGuiCameraObject);
+            _ownedGuiCameraObject = null;
+            _guiCamera = null;
+            hasConfiguredGuiCamera = false;
+            if (_inputModule != null) Destroy(_inputModule);
+            _inputModule = null;
         }
 
         private void tryToggleInventory()
@@ -1316,10 +1345,12 @@ namespace ValheimVRMod.VRCore.UI
 
         private void createOverlay()
         {
+            if (_overlay != OpenVR.k_ulOverlayHandleInvalid) return;
             var overlay = OpenVR.Overlay;
             if (overlay != null)
             {
-                _overlayTexture = new RenderTexture(new RenderTextureDescriptor((int)GUI_DIMENSIONS.x, (int)GUI_DIMENSIONS.y));
+                if (_overlayTexture == null)
+                    _overlayTexture = new RenderTexture(new RenderTextureDescriptor((int)GUI_DIMENSIONS.x, (int)GUI_DIMENSIONS.y));
                 var error = overlay.CreateOverlay(OVERLAY_KEY, OVERLAY_NAME, ref _overlay);
                 if (error != EVROverlayError.None)
                 {
@@ -1337,15 +1368,20 @@ namespace ValheimVRMod.VRCore.UI
 
         private void destroyOverlay()
         {
-            if (_overlay != OpenVR.k_ulOverlayHandleInvalid)
+            try
             {
-                var overlay = OpenVR.Overlay;
-                if (overlay != null)
+                if (_overlay != OpenVR.k_ulOverlayHandleInvalid)
                 {
-                    overlay.DestroyOverlay(_overlay);
+                    var overlay = OpenVR.Overlay;
+                    if (overlay != null) overlay.DestroyOverlay(_overlay);
                 }
+            }
+            finally
+            {
                 _overlay = OpenVR.k_ulOverlayHandleInvalid;
                 hasCreatedOverlay = false;
+                releaseRenderTexture(_overlayTexture);
+                _overlayTexture = null;
             }
         }
 
@@ -1357,6 +1393,12 @@ namespace ValheimVRMod.VRCore.UI
             }
 
             _guiCanvases.Clear();
+            foreach (var entry in originalGuiCameras)
+            {
+                if (entry.Key == null) destroyedGuiCanvases.Add(entry.Key);
+            }
+            foreach (var canvas in destroyedGuiCanvases) originalGuiCameras.Remove(canvas);
+            destroyedGuiCanvases.Clear();
             foreach (var canvas in GameObject.FindObjectsOfType<Canvas>(includeInactive: true))
             {
                 if (canvas.name == MENU_GUI_CANVAS || canvas.name == PASSWORD_CANVAS)
@@ -1558,7 +1600,7 @@ namespace ValheimVRMod.VRCore.UI
             foreach (Canvas guiCanvas in _guiCanvases)
             {
                 // Need to assign the camera to enable UI interactions
-                guiCanvas.worldCamera = _guiCamera;
+                setGuiCanvasCamera(guiCanvas);
                 guiCanvas.renderMode = RenderMode.WorldSpace;
                 guiCanvas.GetComponent<RectTransform>().SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, GUI_DIMENSIONS.x);
                 guiCanvas.GetComponent<RectTransform>().SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, GUI_DIMENSIONS.y);
@@ -1571,11 +1613,24 @@ namespace ValheimVRMod.VRCore.UI
 
         private void creatGuiCamera()
         {
+            if (_guiCamera == null)
+            {
+                if (_ownedGuiCameraObject != null) Destroy(_ownedGuiCameraObject);
+                _ownedGuiCameraObject = new GameObject(CameraUtils.VRGUI_SCREENSPACE_CAM);
+                DontDestroyOnLoad(_ownedGuiCameraObject);
+                _guiCamera = _ownedGuiCameraObject.AddComponent<Camera>();
+            }
+            if (_guiTexture != null &&
+                (_guiTexture.width != (int)GUI_DIMENSIONS.x || _guiTexture.height != (int)GUI_DIMENSIONS.y))
+            {
+                var previousTexture = _guiTexture;
+                _guiTexture = new RenderTexture(new RenderTextureDescriptor((int)GUI_DIMENSIONS.x, (int)GUI_DIMENSIONS.y));
+                replaceUiPanelTexture(previousTexture, _guiTexture);
+                releaseRenderTexture(previousTexture);
+            }
+            if (_guiTexture == null)
+                _guiTexture = new RenderTexture(new RenderTextureDescriptor((int)GUI_DIMENSIONS.x, (int)GUI_DIMENSIONS.y));
             LogDebug("Creating GUI Camera");
-            _guiTexture = new RenderTexture(new RenderTextureDescriptor((int)GUI_DIMENSIONS.x, (int)GUI_DIMENSIONS.y));
-            GameObject guiCamObj = new GameObject(CameraUtils.VRGUI_SCREENSPACE_CAM);
-            DontDestroyOnLoad(guiCamObj);
-            _guiCamera = guiCamObj.AddComponent<Camera>();
             _guiCamera.orthographic = true;
             // Assign the RenderTexture to the camera
             _guiCamera.targetTexture = _guiTexture;
@@ -1592,6 +1647,30 @@ namespace ValheimVRMod.VRCore.UI
             _guiCamera.farClipPlane = 5f;
             _guiCamera.nearClipPlane = 0.1f;
             _guiCamera.enabled = true;
+        }
+
+        private void setGuiCanvasCamera(Canvas canvas)
+        {
+            if (canvas.worldCamera != _guiCamera)
+            {
+                originalGuiCameras[canvas] = canvas.worldCamera;
+                canvas.worldCamera = _guiCamera;
+            }
+        }
+
+        private static void releaseRenderTexture(RenderTexture texture)
+        {
+            if (texture == null) return;
+            texture.Release();
+            Destroy(texture);
+        }
+
+        private static void replaceUiPanelTexture(RenderTexture previous, RenderTexture replacement)
+        {
+            if (_uiPanel == null || previous == null) return;
+            var renderer = _uiPanel.GetComponent<Renderer>();
+            if (renderer != null && renderer.sharedMaterial != null && renderer.sharedMaterial.mainTexture == previous)
+                renderer.sharedMaterial.mainTexture = replacement;
         }
 
         public static GameObject getUiPanel()

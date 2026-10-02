@@ -1,26 +1,26 @@
 {
   "upstreamCommit": "c267f9d75dad21f1eac5c372d48c5a6f38003faa",
-  "adapter_sha256": "FF0EF31ADC16472989F7E7A723A8A5D0C6DDA87857964D8413471DBA7FC2D74E",
-  "gameplay_sha256": "4A98D889A87C6DFF5BC44FAC08FAF5D2D066584261BF20E7D1B8762ED8A75C55",
+  "adapter_sha256": "E10E934A29F80DB0C27C6A87D199CBC36FB441665DE748615DB0B7DF9E4E62F2",
+  "gameplay_sha256": "C7F5EF28ACE5B7450AA729C008293706F0573F61B1136524CC69BEDDFCBD1088",
   "forkCorrections": [
     {
       "path": "ValheimVRMod/Patches/ControlPatches.cs",
-      "sha256": "387F586F17D5CD258457E6EF49FF665A3A375DC9674D5A5667ECAB25918AE6D2",
+      "sha256": "06C9F68645EF45A388EE00FAD431BAADC786DC83747DBF31E7B0E6AC4AC1DBB4",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Patches/EyeRotationPatch.cs",
-      "sha256": "9517EAD111A864B7468CAB113EB5D02DFFBFB548B9422F3682301D7B395C49C9",
+      "sha256": "37F89D1A7EB7543E991F30AA0D135AB31FB0BD8A7A934D2CB5552E7D9B04B9DC",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Patches/HandBasedInteractionPatches.cs",
-      "sha256": "E1EC3BEC669B9DC23F3EA15EB56147184DBD05FDDA3EEF17D554C12125B922FA",
+      "sha256": "64C828547CAF76E7850716D6AB6A9551D1B2FA49E0EE1EA95462094D07EB35B6",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Patches/PostProcessingPatches.cs",
-      "sha256": "A0EEACFD429327A2B3F46BCC5EC103A76BF9BECC001609B8F32435FA37FB7779",
+      "sha256": "8B27DBF2127C1CF1B3F08BC2466B812898357FE365F44C71E3D01750F58E8B55",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
@@ -30,7 +30,7 @@
     },
     {
       "path": "ValheimVRMod/Patches/TextInputPatches.cs",
-      "sha256": "D22F03516418A8F273B54CBE1B876AA0A89C7B8C8D3E446156E0F617048DB4C4",
+      "sha256": "BC028F41553312FF66FC6D43E5B7CC57848806CE2ECC41397A74DC9A88AA1418",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
@@ -50,8 +50,8 @@
     },
     {
       "path": "ValheimVRMod/Scripts/BowLocalManager.cs",
-      "sha256": "91256768DF7B8161DDA6DBD62E45DE967B68E24296C74D12610C9705DAFC761E",
-      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
+      "sha256": "54853B6209067CDE97CEC105132F819A76086763BB53247FFF5C2B73440554BC",
+      "reason": "Route input through shared contracts, reuse the fixed-size prediction buffer and release owned bow indicators and materials."
     },
     {
       "path": "ValheimVRMod/Scripts/BuildingManager.cs",
@@ -60,12 +60,12 @@
     },
     {
       "path": "ValheimVRMod/Scripts/ButtonSecondaryAttackManager.cs",
-      "sha256": "1B282CC7849D1BB71B71F74DE23D822B36EDCA42757AE12AE1FEA45E20BD09BB",
+      "sha256": "40060F6C7DBFB53AA6C383D005C27F00A077D4FFE8344FCBA64AA9A1BD007E19",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/CrossbowManager.cs",
-      "sha256": "33E66881435A30DEBDD92C49A40247D3F570213E32D445D377A954957E8D13DC",
+      "sha256": "75CFBCF7237B5E1EC713315D9A0B1CC833FE27250AD7E1BB3A448F708D461AE4",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
@@ -75,22 +75,22 @@
     },
     {
       "path": "ValheimVRMod/Scripts/DrawbridgeCounterweightGrab.cs",
-      "sha256": "093702CA6230D742C60F6C65C8E96B87F4C541C44FE3A4E4ACE9EE56AC2CA5F4",
+      "sha256": "6D9C76EE47EEB54359F1D4B2CB684C299F0AB7E0D0C3AFDEF91F36F98AA064F3",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/FadingManager.cs",
-      "sha256": "7B5B66FC6FDA892EF2CA12F1B889779C552B0EE8A364009DC07A08312BC93317",
+      "sha256": "04EEDA2A9AE6B47752F59443332C6C139B89B742B83CE6E847F547C5975B478F",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/FishingManager.cs",
-      "sha256": "6F94E7AA5D00EA4C903B82FA01941E5DC3390FBC69EEBE66FD6E6E03DE00F60C",
+      "sha256": "6BF72B91DAC63D778A1208F11835066F4972F29DF29790615AC2A5F6F89B740E",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/FistCollision.cs",
-      "sha256": "0EB967B6A37F039E49D75A68B5B9B3F056003B994404959A25C332FF601BB948",
+      "sha256": "75E06486B10871371AC771B462513572553D129B39E60C1A6DE59D660DA4C6FA",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
@@ -105,7 +105,7 @@
     },
     {
       "path": "ValheimVRMod/Scripts/HandGesture.cs",
-      "sha256": "88678385EA38D4011FBD86533D1B5C3AE3AA9BB4CBF83291DC49854A10F0A689",
+      "sha256": "917B7A37061D3E23069A4100AC1E01037A39075CF9A2A2199467310B297EE3B2",
       "reason": "Read the neutral hand socket; retain upstream render-model finger copying only for OpenVR; optional enhanced articulation is separate."
     },
     {
@@ -120,12 +120,12 @@
     },
     {
       "path": "ValheimVRMod/Scripts/LocalWeaponWield.cs",
-      "sha256": "281B3C1A29F7AD71658ABBF06C96489512F825C7580D43FB379F9B9DFDCE5974",
+      "sha256": "12ABBC3CDC281168EE464DA4D243A30C9BDB17290EACF65E3DF4390A83C2EC36",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/MagicStaffUtils.cs",
-      "sha256": "1419442D582510C599D7E3AADD48C4F530BB53A1219E380AEA76A94276FDF5AF",
+      "sha256": "923D3A6DB3248F17A63191252633EF07864F929090ACB4DF9605602B18B5CE85",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
@@ -135,8 +135,8 @@
     },
     {
       "path": "ValheimVRMod/Scripts/QuickAbstract.cs",
-      "sha256": "D584D18D9913D7DA104781D47C3505CF26DC48BD3CE7F0E393B24FB911F66EB2",
-      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
+      "sha256": "43B7EA7A4349E06D4C66C3C3D3F8A5321D57F58A9E3F31D25E08715FF636A1E8",
+      "reason": "Use shared input/hand contracts and release only the quick menu textures, sprites and material it creates."
     },
     {
       "path": "ValheimVRMod/Scripts/Reining.cs",
@@ -155,7 +155,7 @@
     },
     {
       "path": "ValheimVRMod/Scripts/SummonerManager.cs",
-      "sha256": "75E9D5B3A1A7B4DF89485019BB6609BA4543C90463F0CF1937DB9EA099569419",
+      "sha256": "6AE9DF54BA9B36036AC710322CB6147775BC98ED3AD6B322EF67380E86BE2E75",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
@@ -180,7 +180,7 @@
     },
     {
       "path": "ValheimVRMod/Scripts/WeaponCollision.cs",
-      "sha256": "4E8BFAA7C5CFF51F0F4B9BC966BE7261AE8A8A422540CA1D05E0D6179024B75D",
+      "sha256": "9DD88794AFF5502006B72B1DEB5422A3ECC44773B603B54FEB5BD62ABE4FB719",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
@@ -190,8 +190,8 @@
     },
     {
       "path": "ValheimVRMod/Utilities/PhysicsEstimator.cs",
-      "sha256": "D2D7B4499B4791D0ED98F5E555762D3FEDD4B9DEF877A68101F3CFD9C055E538",
-      "reason": "Use neutral tracked-hand velocities without depending on the Valve hand class."
+      "sha256": "D82E65A43FF8BB8C22E3286AB52D8A90EDD510CE6BC1B4073A357ED763EE4F6E",
+      "reason": "Use neutral tracked-hand velocities and release the owned debug renderer and material through OnDestroy."
     },
     {
       "path": "ValheimVRMod/Utilities/Pose.cs",
@@ -210,7 +210,7 @@
     },
     {
       "path": "ValheimVRMod/Utilities/VRAssetManager.cs",
-      "sha256": "C75D7D799CA5DC9876CA7000069903BF162377E8D08CAAA5D90476106E7148FC",
+      "sha256": "C3B1D656CCD6DBB74F61146A063C7C8E745E6E44DCF6986353B6232273A1CA26",
       "reason": "Load shared shader resources through the selected provider, without initializing Valve shader state under OpenXR."
     },
     {
@@ -220,32 +220,32 @@
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/IVRBackend.cs",
-      "sha256": "FFE6E9C9CE6D8C6608C94EB74DF76A96D15F6BEE9A6A6EC9E9D323F252A61B4C",
+      "sha256": "36CD5C25BCDC5555E2AAC63A853FC6D54DDF8E08ACE736B4D30FB1EE94B8103D",
       "reason": "Define SDK-free input, lifecycle and rig-provider contracts and a startup-locked runtime host."
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/OpenVRRigBackend.cs",
-      "sha256": "A6592A9A8623A968D8A090B11CAD5AF5FAA5C582491556F48674D1FCD40A8CE9",
+      "sha256": "0DBE353B22DD5112CABDCE01511E6427403FD5842807E7C7BFF94A2D92FA94A5",
       "reason": "Keep authored Valve player/pose/skeleton integration inside the original OpenVR provider."
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/OpenVRRuntime.cs",
-      "sha256": "F56F98817556A572B6E221A23E1EF3190D01C3F24A8F1D9EECF7AA7B6F135BDB",
-      "reason": "Preserve upstream OpenVR initialization and mirror behavior in the runtime-specific implementation."
+      "sha256": "08D9AABA9CCC2EBD0B73ADCB0A32170A79140565A43AF23E71A63CE8D51F6820",
+      "reason": "Preserve upstream OpenVR initialization and mirror behavior; share recenter policy and remove unused diagnostic helpers."
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/SteamVRInputBackend.cs",
-      "sha256": "FE3A0522E62E160CBE94F058D733F5AAB3891AC6B255BA4924AB8F1F715EE4CF",
+      "sha256": "A1F16C69CCD923BD7D6818F88E72EB091D67A5D32AA8E52C564B44DA23A39C02",
       "reason": "Original OpenVR SDK adapter and lifecycle; no longer inherited by OpenXR input."
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/VRFade.cs",
-      "sha256": "4DB4D7563FC25CF644BAE8CAA49DE58698FCE70CA74E0125D1200BDE30A675B6",
+      "sha256": "3B0FB3B306DE5F092594C46CD2EF8FA22AEF627B9FA361BC2E1B8685F4562745",
       "reason": "Shared Unity camera fade without Valve compositor or managed event dispatch."
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/VRInput.cs",
-      "sha256": "D3371D03FCB574E2F23D33A8C5B096272055B6E6F1DCB6FF3E88036D2A1586B9",
+      "sha256": "BC0349F2337EC3F269B09C96B7AC6A57A6395AD49D8880B8026000B708B6A590",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
@@ -255,27 +255,27 @@
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/VRLaserPointer.cs",
-      "sha256": "C7375F06E96A7D4A2EB71F5D1B3A7F2723EFF8815440576A3FE9A8103D98830A",
-      "reason": "Preserve upstream pointer behavior using the neutral input and pose contracts; retain upstream attribution."
+      "sha256": "C3F5A7525CE372A2B3640031D1EF4CF08CD8E7371802F5418080BE3B228DB1A4",
+      "reason": "Preserve upstream pointer behavior using neutral input/pose contracts; cache and release its owned renderer, material and objects."
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/VRLog.cs",
-      "sha256": "FC80A73231B5B39CF2C232CAFA861079E6F7C21C7B6E057BEEEC313E5FF870E5",
+      "sha256": "55F56113E30317BC7AEE786B3C3D36C7DB9EE6E32E8090B2307F625E1C0A3B69",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/VRRecenter.cs",
-      "sha256": "2A1976EC91B36EC0E6057B555B68362F8310D3B210C9668A06ED56FCB92BE979",
+      "sha256": "8C8BAB3CEFB89ADA9E87D3650DD7593211FC89FFC6564DF81BB83FDC1E64CED8",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/VRRig.cs",
-      "sha256": "26EA113597DD02A459F9EEF0DD27D0EDB4A9A1F1626E25EE1DF9A74C6E3C438F",
-      "reason": "Shared hand/head/pose publication without optional gameplay policy."
+      "sha256": "F38B5B2CCF43B8198DA6187B7E2F956277D43BEE2B349628928C8EC19A6BAF56",
+      "reason": "Shared hand/head/pose publication without optional gameplay policy; preserve origin scale in linear velocity transforms."
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/VRShaders.cs",
-      "sha256": "08A47B46A9CD204954065968D36719B239E7CB95B003E9E1BD427F28F18FF2E8",
+      "sha256": "F0B7750F1203F0249BE84435B9555795F3F539500DC70CC635B962C2597B6797",
       "reason": "Load native shared shader assets directly for OpenXR; original Valve shader loading stays on OpenVR."
     },
     {
@@ -290,22 +290,22 @@
     },
     {
       "path": "ValheimVRMod/VRCore/UI/MissingBindingsPrompt.cs",
-      "sha256": "93D0350D00618425D678E6C8856DB94A9EB5F06EA18C2BDB104DBD985158D715",
+      "sha256": "7ECFC0BF14EA65265342AAF528E3FB3215067F6F4E9E3B27AFF6ED004C71B685",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/VRCore/UI/VRControls.cs",
-      "sha256": "2725B228D9625A2F7833B13183210DDA3E5FB6E2FECC8131D4FDA41B06230866",
+      "sha256": "FE0CF0A8F4CE74A85D44F1C10757879F2375444FE9E2F1A5F8C2DB9282D0BFA2",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/VRCore/UI/VRGUI.cs",
-      "sha256": "998D10D4C8B760939A13AEBC67936D46C382F51FC94AF6A54F4F608AE265DB0C",
-      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
+      "sha256": "86285BB942C077CFD77FB8C269597AA3BA6D4EEA243FC039438D9EC66D470AB0",
+      "reason": "Use shared input/rig contracts, reuse the owned GUI camera, and release its render targets without changing borrowed canvases."
     },
     {
       "path": "ValheimVRMod/VRCore/UI/VRHud.cs",
-      "sha256": "DF5D279E28A82ACEC8691B2CCB26CF8D4F3DA2F164F66804C1981E9B473F0B32",
+      "sha256": "D1C558DA54BC984C44AF2DA905CF3571185B7336794F58B5AF2F19A4E4A75ECA",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
@@ -315,64 +315,83 @@
     },
     {
       "path": "ValheimVRMod/VRCore/VRManager.cs",
-      "sha256": "283A51BFA43DDABAAA57D0F2E4719BBD6C5E640DA4CE3F3927C67C301B59DE30",
+      "sha256": "0AD69DFEE7F8315B80556669C74AD9B3913FE1B04BA322E3E3B086223ACCF09C",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/VRCore/VRGameplayOptions.cs",
-      "sha256": "CFBA88DD20AFD33411BD1708FF3D068CFD98F8C8DE34E9489A75AFE9530BFD75",
+      "sha256": "AE66EE30F6CD301BBD0CCFE84D007AD564954E9B9FFBDEA981A8FC0CEDF21FDA",
       "reason": "Independent, disabled-by-default gameplay enhancement options, separate from runtime/input/rig contracts."
     },
     {
       "path": "ValheimVRMod/VRCore/VRPlayer.cs",
-      "sha256": "0D9680D6E8B0F761163797F8DD9A813F836E3E4A13B5251264D25DE3CA4FBDEC",
+      "sha256": "508DD367F6C4725F3E40B0A17B82E094EE15A86767E950164889093F7F0C8432",
       "reason": "Instantiate the selected rig provider; use neutral hand, head, pointer and fade values; keep body tracking on its original OpenVR provider."
+    },
+    {
+      "path": "ValheimVRMod/Scripts/Outline.cs",
+      "sha256": "4254BA9CE2972920958FA70FAAEE39004F21F7616C9E6373381A0D4AA1F2132F",
+      "reason": "Release only the per-instance outline materials when the component is destroyed."
+    },
+    {
+      "path": "ValheimVRMod/Scripts/UnderwaterEffectsUpdater.cs",
+      "sha256": "CCEE8CEC8948185F3944E1F0DB101FA8A180C4BA61674E8677109CCBB92EF221",
+      "reason": "Release owned underwater objects, material clones, texture and generated grid mesh; keep borrowed camera, quad and assets."
+    },
+    {
+      "path": "ValheimVRMod/Scripts/EquipBoundingBoxFix.cs",
+      "sha256": "6FEC541A7706872B4EA4A358A6C9F3BFB4DAE9940C46A6686809AE677468C25A",
+      "reason": "Skip body lookup and temporary corner allocation when no equipment bounds need fixing."
     }
   ],
   "sources": [
     {
       "name": "AssemblyInfo.cs",
-      "sha256": "86EFB4A729F6036315A3AE4DD14BF0A6E02EB6336D7443DC3AFF903BF7240AB6"
+      "sha256": "210BA548884BAB0B68D1A7A196B9F5F22FCA1DF98B0B297A53808B21D4E5E9A9"
     },
     {
       "name": "InputAdapter.cs",
-      "sha256": "7B47A423F2EFA438947567F9D8ECDF84A15EA9904764EF5BCF3FE42C4337A70F"
+      "sha256": "D2EB587DBCCF7FB40F688D6150421484502754065D743D671D31D49431DB2BEC"
     },
     {
       "name": "OpenXRAmbientOcclusion.cs",
-      "sha256": "CCB3179201541E81F47DA33ECE09CAE5C149C2E9DDF3DC4B25AA4E56C5A66B01"
+      "sha256": "3EAC3405B1E0BCF1ACDAD71C8C62BD574C2535C0EFA3DC8DFEC4691C47C9C94E"
     },
     {
       "name": "OpenXRBackend.cs",
-      "sha256": "32DAB4A075EE009DEF162C606034750A7B5011830C52094EC205307E308B4192"
+      "sha256": "7F4CF5D9E2AEDA90B1C3A7303FF5EE4F556C4D1EDE5B6CBC791CA3F4D3CCD2C4"
     },
     {
       "name": "OpenXREquipmentQuality.cs",
-      "sha256": "C78AA3E489F0C7C21AB8500490359793262DFD8FE94F80C7A057441A2A450C5E"
+      "sha256": "4C3BD182CAD49DF27A444CEEC1E48850D81526043742519A5E2C6F7B6D3F29E4"
     },
     {
       "name": "OpenXRImageQuality.cs",
-      "sha256": "42C5F2979E16796365C496FE2CC64F2E6480E6B2916BFB5957A4F0685C465980"
+      "sha256": "720B1F17BD9E03346E5018456DBB88D05E3A8F206E132068AEB8A87E1225B69A"
     },
     {
       "name": "OpenXRInputFocus.cs",
-      "sha256": "CF3A068789E7D4BAE440B0983B989A54AF5E8670F5D03E58CFCDAE3FFB468D18"
+      "sha256": "DABCEC84B4A3BDDB7541D5A58A11AE51A1D732AF5C78AC1BB9BA9512D6C07AAA"
     },
     {
       "name": "OpenXRPlugin.cs",
-      "sha256": "0F625B89A1E7D8E9B88F6C120C1853E0AFCEF37DF45DCFAA4C4F090A979A725B"
+      "sha256": "AE3A16D57AB2E44AE0572510892AD6803439A6333227B8A6AB2451413C7298C5"
     },
     {
       "name": "OpenXRRigBackend.cs",
-      "sha256": "89BF75B5372B9E1D851D937DC4FC64D0765BD011EC4AE04E38166B2F3A3A2A24"
+      "sha256": "E2EE200DDDCFFE81F7A00A2068C77BA9E9BAD42E4E32B1A07E3CB95FADD863B6"
     },
     {
       "name": "OpenXRTrackedEquipment.cs",
-      "sha256": "EFD048CD34BE86070EB304C9F5395C18C1C9253009032D1F1A317D68B6857CB4"
+      "sha256": "2ED1AD4205D0714479FA73ECDAE3C7853488562F07E509568505DB30E2B2CE52"
+    },
+    {
+      "name": "RenderFrameGate.cs",
+      "sha256": "F73EBFD2C1A5215A439C2C47252C374E125C50AD1004F6D5B1B9F0C1B991216D"
     },
     {
       "name": "RuntimeAdapter.cs",
-      "sha256": "FAA3854F1B9FF81F97FAB0A2D94BE295ABA9C549A3DADD6F3FF10F44CFE237CE"
+      "sha256": "544E98BA1D337A6EF2889203F08F4A16B55BCB4A978C6E2EF4637839B588763B"
     }
   ],
   "sharedSources": [
@@ -386,7 +405,7 @@
     },
     {
       "path": "OpenXR/src/shared-gameplay/OpenXRHandRig.cs",
-      "sha256": "686B49DE4192D71D70D68CEDBAC7609D31DA1B99890CBDF439048C9B676EDC0E"
+      "sha256": "66FD58F65412FE931127681B15A66D82993CAD5C0D29D856F895937A6A3319C9"
     },
     {
       "path": "OpenXR/src/shared-gameplay/OpenXRImpactGate.cs",
@@ -394,15 +413,15 @@
     },
     {
       "path": "OpenXR/src/shared-gameplay/OpenXRPhysicalEquipment.cs",
-      "sha256": "4A5804963C4D665D4D21EBD702667CA10184E504ED99596DF37771A3EC651D7A"
+      "sha256": "A4DED6D69EA6F3CB63D5F490E4AE97CCACC664571D08CD3F031A3E0383D013A5"
     },
     {
       "path": "OpenXR/src/shared-gameplay/OpenXRPhysicalGrab.cs",
-      "sha256": "9F1E15B735EF6116BE7A91812C1B21EF69FD94951252A9026FC9B3B3F5665F8D"
+      "sha256": "89D9561582F71E53662673268A5418E5FD1C03EACD878E9BEEC26FB560824BD0"
     },
     {
       "path": "OpenXR/src/shared-gameplay/OpenXRPhysicalHands.cs",
-      "sha256": "EFA83053396D7E86F4E4CEA94E94ABE0605EC84F63EB97CC945EB2E34ED1EDF3"
+      "sha256": "3FFFE99D152BBFE8633D391885EA86201A156DD65A5B77603559B957C7F84ECD"
     }
   ]
 }

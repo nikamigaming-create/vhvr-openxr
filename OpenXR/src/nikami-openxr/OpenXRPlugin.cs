@@ -52,6 +52,10 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
     static XRDisplaySubsystem observedDisplay;
     bool previousRunInBackground;
     bool usingOpenVR;
+    bool ownsResources;
+    bool selectedBackend;
+    Harmony harmony;
+    Camera[] cameras = Array.Empty<Camera>();
     readonly List<XRDisplaySubsystem> nativeDisplays = new();
     void Awake()
     {
@@ -63,9 +67,11 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
             enabled = false;
             return;
         }
-        var harmony = new Harmony("nikami.openxr");
+        previousRunInBackground = Application.runInBackground;
+        ownsResources = true;
         try
         {
+            harmony = new Harmony("nikami.openxr");
             var configured = Config.Bind("Runtime", "Backend", "openxr", "VR backend: openxr or openvr (steamvr alias). Restart required; -vrbackend overrides this setting.");
             var choice = VRBackendHost.Choose(configured.Value, arguments);
             VRGameplay.Configure(new VRGameplayOptions(
@@ -78,14 +84,14 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
             if (choice == VRBackendKind.OpenVR)
             {
                 VRBackendHost.Select(new OpenVRBackend());
+                selectedBackend = true;
                 usingOpenVR = true;
-                previousRunInBackground = Application.runInBackground;
                 Camera.onPreRender += CountVRCameraFrame;
                 Log.LogInfo("Selected original OpenVR/SteamVR backend. OpenXR native runtime and patches remain inactive.");
                 return;
             }
             VRBackendHost.Select(new OpenXRBackend());
-            previousRunInBackground = Application.runInBackground;
+            selectedBackend = true;
             Application.runInBackground = true;
             RuntimeAdapter.Install(harmony);
             InputAdapter.Install();
@@ -99,11 +105,9 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
             // Do not fall through to SteamVR when an upstream API changes.
             if (BepInEx.Bootstrap.Chainloader.PluginInfos.TryGetValue("org.bepinex.plugins.valheimvrmod", out var upstream) && upstream.Instance)
                 upstream.Instance.enabled = false;
-            harmony.UnpatchSelf();
-            InputAdapter.Shutdown();
+            ReleaseResources();
             Logger.LogError("OpenXR compatibility initialization failed; VR startup stopped. " + error);
             enabled = false;
-            Application.runInBackground = previousRunInBackground;
         }
     }
 
@@ -293,8 +297,23 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
         if (now >= nextCameraScan)
         {
             nextCameraScan = now + .5f;
-            cameraExpected = Player.m_localPlayer && Camera.allCameras.Any(camera =>
-                camera && camera.name == "VRCamera" && camera.enabled && camera.gameObject.activeInHierarchy);
+            cameraExpected = false;
+            if (Player.m_localPlayer)
+            {
+                int required = Camera.allCamerasCount;
+                if (cameras.Length < required) Array.Resize(ref cameras, required);
+                int count = Camera.GetAllCameras(cameras);
+                for (int i = 0; i < count; i++)
+                {
+                    var camera = cameras[i];
+                    if (camera && camera.name == "VRCamera" && camera.enabled && camera.gameObject.activeInHierarchy)
+                    {
+                        cameraExpected = true;
+                        break;
+                    }
+                }
+                Array.Clear(cameras, 0, cameras.Length);
+            }
         }
         FramesHealthy = DisplayHealthy && (!cameraExpected || (lastVrCameraFrame >= 0 && LastVRCameraFrameAge <= 2.5f));
         if (DisplayHealthy && FramesHealthy)
@@ -352,11 +371,16 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
             Log.LogError("OpenXR watchdog recovery failed: " + error);
         }
     }
-    void OnDestroy()
+    void OnDestroy() => ReleaseResources();
+
+    void ReleaseResources()
     {
-        if (!enabled) return;
+        if (!ownsResources) return;
+        ownsResources = false;
         Ready = false;
         SessionStarted = false;
+        DisplayHealthy = false;
+        FramesHealthy = false;
         Camera.onPreRender -= CountVRCameraFrame;
         if (observedDisplay != null) observedDisplay.displayFocusChanged -= OnDisplayFocusChanged;
         observedDisplay = null;
@@ -364,8 +388,25 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
         probedDisplayRunning = false;
         probedRenderPasses = 0;
         displaySubsystem = null;
-        InputAdapter.Shutdown();
-        VRBackendHost.Stop();
+        nativeDisplays.Clear();
+        cameras = Array.Empty<Camera>();
+        Cleanup("physical hands", OpenXRPhysicalHands.Uninstall);
+        Cleanup("input", InputAdapter.Shutdown);
+        Cleanup("presentation", RuntimeAdapter.Shutdown);
+        Cleanup("tracked equipment", OpenXRTrackedEquipment.Shutdown);
+        Cleanup("patches", () => harmony?.UnpatchSelf());
+        harmony = null;
+        if (selectedBackend)
+        {
+            selectedBackend = false;
+            Cleanup("backend", VRBackendHost.Stop);
+        }
         Application.runInBackground = previousRunInBackground;
+    }
+
+    void Cleanup(string resource, Action release)
+    {
+        try { release(); }
+        catch (Exception error) { Logger.LogError("VR cleanup failed for " + resource + ": " + error); }
     }
 }

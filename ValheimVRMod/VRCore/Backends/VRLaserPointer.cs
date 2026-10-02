@@ -36,10 +36,14 @@ namespace ValheimVRMod.VRCore.Backends
         private bool mouseButtonsLocked = false;
 
         Transform previousContact = null;
+        private MeshRenderer pointerRenderer;
+        private Material pointerMaterial;
+        private GameObject ownedHolder;
+        private GameObject ownedPointer;
 
         public void setVisible(bool visible) {
-            if (pointer != null) {
-                pointer.GetComponent<Renderer>().enabled = visible;
+            if (pointerRenderer != null) {
+                pointerRenderer.enabled = visible;
             }
         }
 
@@ -68,11 +72,13 @@ namespace ValheimVRMod.VRCore.Backends
                 Debug.LogError("No RightClick action has been set on this component.", this);
 
             holder = new GameObject();
+            ownedHolder = holder;
             holder.transform.parent = this.transform;
             holder.transform.localPosition = new Vector3(0.04f, -0.05f, -0.01f);
             holder.transform.localRotation = Quaternion.Euler(40f, 3f, 0f);
 
             pointer = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            ownedPointer = pointer;
             pointer.layer = 23; // Hands layer
             pointer.transform.parent = holder.transform;
             pointer.transform.localScale = new Vector3(thickness, thickness, 100f);
@@ -95,9 +101,23 @@ namespace ValheimVRMod.VRCore.Backends
                     Object.Destroy(collider);
                 }
             }
-            Material newMaterial = new Material(VRShaders.GetShader("Custom/SteamVR_ClearAll"));
-            newMaterial.SetColor("_Color", color);
-            pointer.GetComponent<MeshRenderer>().material = newMaterial;
+            pointerMaterial = new Material(VRShaders.GetShader("Custom/SteamVR_ClearAll"));
+            pointerMaterial.SetColor("_Color", color);
+            pointerRenderer = pointer.GetComponent<MeshRenderer>();
+            pointerRenderer.sharedMaterial = pointerMaterial;
+        }
+
+        private void OnDestroy()
+        {
+            if (pointerMaterial != null) Object.Destroy(pointerMaterial);
+            pointerMaterial = null;
+            pointerRenderer = null;
+            if (pointer == ownedPointer) pointer = null;
+            if (holder == ownedHolder) holder = null;
+            if (ownedPointer != null) Object.Destroy(ownedPointer);
+            if (ownedHolder != null) Object.Destroy(ownedHolder);
+            ownedPointer = null;
+            ownedHolder = null;
         }
 
         public virtual void OnPointerIn(PointerEventArgs e)
@@ -229,12 +249,12 @@ namespace ValheimVRMod.VRCore.Backends
             if (leftClick != null && leftClick.GetState(pose.inputSource))
             {
                 pointer.transform.localScale = new Vector3(thickness * 5f, thickness * 5f, dist);
-                pointer.GetComponent<MeshRenderer>().material.color = clickColor;
+                pointerMaterial.color = clickColor;
             }
             else
             {
                 pointer.transform.localScale = new Vector3(thickness, thickness, dist);
-                pointer.GetComponent<MeshRenderer>().material.color = color;
+                pointerMaterial.color = color;
             }
 
             pointer.transform.localPosition = new Vector3(0f, 0f, dist / 2f);

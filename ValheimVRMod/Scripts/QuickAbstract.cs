@@ -1,5 +1,6 @@
 using ValheimVRMod.VRCore.Backends;
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using UnityEngine;
@@ -24,6 +25,7 @@ namespace ValheimVRMod.Scripts
         protected Texture2D tex_standard;
         protected Texture2D tex_hovered;
         protected Texture2D tex_selected;
+        private readonly HashSet<UnityEngine.Object> ownedMenuAssets = new HashSet<UnityEngine.Object>();
 
         protected GameObject hoveredItem;
         private int elementCount;
@@ -74,11 +76,17 @@ namespace ValheimVRMod.Scripts
             private ItemDrop.ItemData item;
 
             private QuickMenuItemCallback callback;
+            public QuickAbstract assetOwner;
             private Sprite sprite
             {
                 set
                 {
-                    transform.GetChild(2).GetComponent<SpriteRenderer>().sprite = value;
+                    var renderer = transform.GetChild(2).GetComponent<SpriteRenderer>();
+                    if (renderer.sprite != value)
+                    {
+                        assetOwner?.ReleaseOwnedSprite(renderer.sprite);
+                        renderer.sprite = value;
+                    }
                     ResizeIcon();
                 }
             }
@@ -232,16 +240,43 @@ namespace ValheimVRMod.Scripts
         private void OnDestroy()
         {
             Destroy(wrist);
-            Destroy(quickMenuLocker);
+            if (quickMenuLocker != null) Destroy(quickMenuLocker.gameObject);
             Destroy(radialMenu);
-            foreach (QuickMenuItem item in elements)
+            Destroy(hoveredItem);
+            Destroy(sphere);
+            if (elements != null)
             {
-                Destroy(item);
+                foreach (QuickMenuItem item in elements)
+                {
+                    if (item != null) Destroy(item.gameObject);
+                }
             }
-            foreach (QuickMenuItem item in extraElements)
+            if (extraElements != null)
             {
-                Destroy(item);
+                foreach (QuickMenuItem item in extraElements)
+                {
+                    if (item != null) Destroy(item.gameObject);
+                }
             }
+            foreach (var asset in ownedMenuAssets)
+            {
+                if (asset != null) Destroy(asset);
+            }
+            ownedMenuAssets.Clear();
+            tex_standard = tex_hovered = tex_selected = null;
+            wrist = radialMenu = hoveredItem = sphere = null;
+            quickMenuLocker = null;
+        }
+
+        private T OwnMenuAsset<T>(T asset) where T : UnityEngine.Object
+        {
+            ownedMenuAssets.Add(asset);
+            return asset;
+        }
+
+        private void ReleaseOwnedSprite(Sprite sprite)
+        {
+            if (sprite != null && ownedMenuAssets.Remove(sprite)) Destroy(sprite);
         }
         public abstract void UpdateWristBar();
         public abstract void refreshItems();
@@ -252,8 +287,9 @@ namespace ValheimVRMod.Scripts
             sphere.transform.SetParent(transform);
             sphere.transform.localScale *= 0.02f;
             sphere.layer = LayerUtils.getWorldspaceUiLayer();
-            sphere.GetComponent<MeshRenderer>().material = Instantiate(VRAssetManager.GetAsset<Material>("Unlit"));
-            sphere.GetComponent<MeshRenderer>().material.color = Color.red;
+            var material = OwnMenuAsset(Instantiate(VRAssetManager.GetAsset<Material>("Unlit")));
+            material.color = Color.red;
+            sphere.GetComponent<MeshRenderer>().sharedMaterial = material;
             Destroy(sphere.GetComponent<Collider>());
         }
 
@@ -266,15 +302,15 @@ namespace ValheimVRMod.Scripts
         private void initialize()
         {
 
-            tex_standard = new Texture2D(1, 1);
+            tex_standard = OwnMenuAsset(new Texture2D(1, 1));
             tex_standard.SetPixel(0, 0, standard);
             tex_standard.Apply();
 
-            tex_hovered = new Texture2D(1, 1);
+            tex_hovered = OwnMenuAsset(new Texture2D(1, 1));
             tex_hovered.SetPixel(0, 0, hovered);
             tex_hovered.Apply();
 
-            tex_selected = new Texture2D(1, 1);
+            tex_selected = OwnMenuAsset(new Texture2D(1, 1));
             tex_selected.SetPixel(0, 0, selected);
             tex_selected.Apply();
 
@@ -282,6 +318,7 @@ namespace ValheimVRMod.Scripts
             {
 
                 elements[i] = new GameObject().AddComponent<QuickMenuItem>();
+                elements[i].assetOwner = this;
                 elements[i].transform.SetParent(radialMenu.transform, false);
 
                 CreateItemLayers(elements[i].gameObject);
@@ -290,6 +327,7 @@ namespace ValheimVRMod.Scripts
             for (int i = 0; i < MAX_EXTRA_ELEMENTS; i++)
             {
                 extraElements[i] = new GameObject().AddComponent<QuickMenuItem>();
+                extraElements[i].assetOwner = this;
                 extraElements[i].transform.SetParent(wrist.transform, false);
 
                 CreateItemLayers(extraElements[i].gameObject);
@@ -300,7 +338,7 @@ namespace ValheimVRMod.Scripts
             hoveredItem.transform.SetParent(transform, false);
             hoveredItem.transform.localScale *= 4;
             var hoveredItemRenderer = hoveredItem.AddComponent<SpriteRenderer>();
-            hoveredItemRenderer.sprite = Sprite.Create(tex_hovered, new Rect(0.0f, 0.0f, tex_hovered.width, tex_hovered.height), new Vector2(0.5f, 0.5f));
+            hoveredItemRenderer.sprite = OwnMenuAsset(Sprite.Create(tex_hovered, new Rect(0.0f, 0.0f, tex_hovered.width, tex_hovered.height), new Vector2(0.5f, 0.5f)));
             hoveredItemRenderer.sortingOrder = 1;
             hoveredItem.SetActive(false);
             quickMenuLocker = new GameObject().transform;
@@ -439,7 +477,7 @@ namespace ValheimVRMod.Scripts
             standardLayer.transform.SetParent(currentParent.transform, false);
             standardLayer.transform.localScale *= 4;
             var standardRenderer = standardLayer.AddComponent<SpriteRenderer>();
-            standardRenderer.sprite = Sprite.Create(tex_standard, new Rect(0.0f, 0.0f, tex_standard.width, tex_standard.height), new Vector2(0.5f, 0.5f));
+            standardRenderer.sprite = OwnMenuAsset(Sprite.Create(tex_standard, new Rect(0.0f, 0.0f, tex_standard.width, tex_standard.height), new Vector2(0.5f, 0.5f)));
             standardRenderer.sortingOrder = 0;
 
             GameObject equipedLayer = new GameObject();
@@ -447,7 +485,7 @@ namespace ValheimVRMod.Scripts
             equipedLayer.transform.SetParent(currentParent.transform, false);
             equipedLayer.transform.localScale *= 4;
             var equipedRenderer = equipedLayer.AddComponent<SpriteRenderer>();
-            equipedRenderer.sprite = Sprite.Create(tex_selected, new Rect(0.0f, 0.0f, tex_selected.width, tex_selected.height), new Vector2(0.5f, 0.5f));
+            equipedRenderer.sprite = OwnMenuAsset(Sprite.Create(tex_selected, new Rect(0.0f, 0.0f, tex_selected.width, tex_selected.height), new Vector2(0.5f, 0.5f)));
             equipedRenderer.sortingOrder = 2;
             equipedLayer.SetActive(false);
 
@@ -609,7 +647,7 @@ namespace ValheimVRMod.Scripts
             {
                 extraElements[extraElementCount].useAsQuickAction(
                     "QuickActionSIT",
-                    Sprite.Create(sitTexture, new Rect(0.0f, 0.0f, sitTexture.width, sitTexture.height), new Vector2(0.5f, 0.5f), 500),
+                    OwnMenuAsset(Sprite.Create(sitTexture, new Rect(0.0f, 0.0f, sitTexture.width, sitTexture.height), new Vector2(0.5f, 0.5f), 500)),
                     delegate ()
                     {
                         if (Player.m_localPlayer.InEmote() && Player.m_localPlayer.IsSitting())
@@ -625,7 +663,7 @@ namespace ValheimVRMod.Scripts
             {
                 extraElements[extraElementCount].useAsQuickAction(
                     "QuickActionMAP",
-                    Sprite.Create(mapTexture, new Rect(0.0f, 0.0f, mapTexture.width, mapTexture.height), new Vector2(0.5f, 0.5f), 500),
+                    OwnMenuAsset(Sprite.Create(mapTexture, new Rect(0.0f, 0.0f, mapTexture.width, mapTexture.height), new Vector2(0.5f, 0.5f), 500)),
                     delegate ()
                     {
                         GetButtonPatchUtils.Press("Map");
@@ -639,7 +677,7 @@ namespace ValheimVRMod.Scripts
             {
                 extraElements[extraElementCount].useAsQuickAction(
                     "QuickActionRECENTER",
-                    Sprite.Create(recenterTexture, new Rect(0.0f, 0.0f, recenterTexture.width, recenterTexture.height), new Vector2(0.5f, 0.5f), 500),
+                    OwnMenuAsset(Sprite.Create(recenterTexture, new Rect(0.0f, 0.0f, recenterTexture.width, recenterTexture.height), new Vector2(0.5f, 0.5f), 500)),
                     delegate ()
                     {
                         VRManager.tryRecenter();
@@ -652,7 +690,7 @@ namespace ValheimVRMod.Scripts
             {
                 extraElements[extraElementCount].useAsQuickAction(
                     "QuickActionCHAT",
-                    Sprite.Create(chatTexture, new Rect(0.0f, 0.0f, chatTexture.width, chatTexture.height), new Vector2(0.5f, 0.5f), 500),
+                    OwnMenuAsset(Sprite.Create(chatTexture, new Rect(0.0f, 0.0f, chatTexture.width, chatTexture.height), new Vector2(0.5f, 0.5f), 500)),
                     delegate ()
                     {
                         // While the SteamVR keyboard is driving chat input, leave it to close/

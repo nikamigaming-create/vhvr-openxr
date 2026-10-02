@@ -17,7 +17,7 @@ internal static class InputAdapter
 {
     sealed class Binding
     {
-        internal string Output, Set, Path, Component, Mode;
+        internal string Output, Set, Path, ControlName, Component, Mode;
         internal int Hand;
         internal float Press = .55f, Release = .45f;
         internal bool Held;
@@ -43,14 +43,21 @@ internal static class InputAdapter
         internal Vector3 Velocity;
         internal float Time;
     }
+    sealed class SampleKeyComparer : IEqualityComparer<(string Path, int Source)>
+    {
+        public bool Equals((string Path, int Source) x, (string Path, int Source) y) =>
+            x.Source == y.Source && StringComparer.OrdinalIgnoreCase.Equals(x.Path, y.Path);
+        public int GetHashCode((string Path, int Source) key) =>
+            StringComparer.OrdinalIgnoreCase.GetHashCode(key.Path) ^ key.Source;
+    }
     static readonly Dictionary<string, List<Binding>> Bindings = new(StringComparer.OrdinalIgnoreCase);
     static readonly Dictionary<string, List<Chord>> Chords = new(StringComparer.OrdinalIgnoreCase);
     static readonly List<Binding> AllBindings = new();
     static readonly Dictionary<Binding, int> ActivePriorities = new();
     static readonly Dictionary<string, int> ControlPriorities = new(StringComparer.OrdinalIgnoreCase);
-    static readonly Dictionary<(string, int), Sample> Samples = new();
+    static readonly Dictionary<(string Path, int Source), Sample> Samples = new(new SampleKeyComparer());
+    static readonly List<(string Path, int Source)> BoundSamples = new();
     static readonly Dictionary<int, PoseSample> PoseSamples = new();
-    static readonly HashSet<string> Warned = new();
     static readonly XRDevice[] Devices = new XRDevice[4];
     static readonly Dictionary<XRDevice, Dictionary<string, InputControl>> Controls = new();
     static bool devicesResolved;
@@ -97,6 +104,13 @@ internal static class InputAdapter
         VRPoseDriver.RefreshOpenXRPose();
         if (dispatchedFrame == Time.frameCount) return;
         dispatchedFrame = Time.frameCount;
+        // Edges belong to the input frame, even when gameplay does not read an
+        // action in that frame (e.g. a trigger before a crossbow is equipped).
+        for (int i = 0; i < BoundSamples.Count; i++)
+        {
+            var key = BoundSamples[i];
+            GetSample(key.Path, key.Source);
+        }
         for (int i = Pulses.Count - 1; i >= 0; i--)
             if (Time.unscaledTime >= Pulses[i].At)
             { var pulse = Pulses[i]; Pulses.RemoveAt(i); SendPulse(pulse); }
@@ -119,7 +133,8 @@ internal static class InputAdapter
         InputSystem.onDeviceChange -= DeviceChanged;
         Application.onBeforeRender -= VRPoseDriver.RefreshOpenXRPose;
         DigitalListeners.Clear(); AxisListeners.Clear(); UpdateListeners.Clear(); Updated = null;
-        Sets.Clear(); Pulses.Clear(); Samples.Clear(); dispatchedFrame = -1;
+        Sets.Clear(); Pulses.Clear(); Samples.Clear(); BoundSamples.Clear(); dispatchedFrame = -1;
+        ActivePriorities.Clear(); ControlPriorities.Clear(); Bindings.Clear(); Chords.Clear(); AllBindings.Clear();
         DeviceChanged(null, default);
     }
     static void DeviceChanged(XRDevice device, InputDeviceChange change)
@@ -132,7 +147,7 @@ internal static class InputAdapter
     }
     internal static void LoadBindings()
     {
-        Bindings.Clear(); Chords.Clear(); AllBindings.Clear(); Samples.Clear();
+        Bindings.Clear(); Chords.Clear(); AllBindings.Clear(); Samples.Clear(); BoundSamples.Clear();
         var file = Path.Combine(Application.streamingAssetsPath, "SteamVR", "bindings_oculus_touch.json");
         var root = JObject.Parse(File.ReadAllText(file));
         foreach (var set in ((JObject)root["bindings"]).Properties())
@@ -157,12 +172,23 @@ internal static class InputAdapter
         }
         int sourceCount = Bindings.Values.Sum(list => list.Count);
         int chordCount = Chords.Values.Sum(list => list.Count);
-        int actionCount = Bindings.Keys.Union(Chords.Keys, StringComparer.OrdinalIgnoreCase).Count();
+        int actionCount = 0;
+        foreach (var path in Bindings.Keys.Union(Chords.Keys, StringComparer.OrdinalIgnoreCase))
+        {
+            actionCount++;
+            for (int source = 0; source < Devices.Length; source++)
+            {
+                var key = (path, source);
+                Samples.Add(key, new Sample());
+                BoundSamples.Add(key);
+            }
+        }
         OpenXRPlugin.Log.LogInfo($"Imported {actionCount} upstream Oculus Touch actions into OpenXR ({sourceCount} source bindings, {chordCount} chords).");
     }
     static Binding MakeBinding(string output, string path, string component, string mode, JToken parameters)
     {
         var binding = new Binding { Output = output, Set = output.Substring(0, output.IndexOf("/in/", StringComparison.OrdinalIgnoreCase)), Path = path, Component = component, Mode = mode };
+        binding.ControlName = path.Substring(path.LastIndexOf('/') + 1);
         binding.Hand = path.Contains("/left/") ? 1 : path.Contains("/right/") ? 2 : 3;
         binding.Press = (float?)parameters?["click_activate_threshold"] ?? binding.Press;
         binding.Release = (float?)parameters?["click_deactivate_threshold"] ?? binding.Release;
@@ -187,8 +213,15 @@ internal static class InputAdapter
             if (!ControlPriorities.TryGetValue(binding.Path, out current) || set.Priority > current) ControlPriorities[binding.Path] = set.Priority;
         }
     }
-    internal static bool IsActionSetActive(string path, VRInputSource source) => Hand(source) >= 0 &&
-        Sets.Any(set => set.Path.Equals(path, StringComparison.OrdinalIgnoreCase) && (set.Hand == 0 || set.Hand == Hand(source) || source == VRInputSource.Any));
+    internal static bool IsActionSetActive(string path, VRInputSource source)
+    {
+        int hand = Hand(source);
+        if (hand < 0) return false;
+        foreach (var set in Sets)
+            if (set.Path.Equals(path, StringComparison.OrdinalIgnoreCase) && (set.Hand == 0 || set.Hand == hand || hand == 0))
+                return true;
+        return false;
+    }
     static bool BindingActive(Binding binding)
     {
         // VHVR gives its UI action set priority over gameplay. Without this
@@ -213,21 +246,6 @@ internal static class InputAdapter
         }
         return Devices[hand];
     }
-    internal static bool TryGetVelocity(int hand, out Vector3 velocity)
-    {
-        velocity = Vector3.zero;
-        if (hand < 1 || hand > 2 || !PoseSamples.TryGetValue(hand, out var sample) || !sample.Valid)
-            return false;
-        // PhysicsEstimator is normally sampled during FixedUpdate while the
-        // OpenXR pose is published during the render/input update.  Accept a
-        // short handoff window so the derived velocity remains available for
-        // the collision tick without retaining stale swings after the hand
-        // has stopped.
-        if (sample.Frame < 0 || Time.frameCount - sample.Frame > 8 || sample.Velocity.sqrMagnitude < .0001f)
-            return false;
-        velocity = sample.Velocity;
-        return true;
-    }
     internal static T Control<T>(XRDevice d, string name) where T : InputControl
     {
         if (d == null) return null;
@@ -238,16 +256,16 @@ internal static class InputAdapter
     static Vector2 ReadAxis(Binding b)
     {
         var d = Device(b.Hand);
-        if (b.Path.EndsWith("joystick")) return (Control<Vector2Control>(d, "thumbstick") ?? Control<Vector2Control>(d, "primary2DAxis"))?.ReadValue() ?? Vector2.zero;
-        if (b.Path.EndsWith("trigger")) return new Vector2(Control<AxisControl>(d, "trigger")?.ReadValue() ?? 0, 0);
-        if (b.Path.EndsWith("grip")) return new Vector2(Control<AxisControl>(d, "grip")?.ReadValue() ?? 0, 0);
+        if (b.ControlName == "joystick") return (Control<Vector2Control>(d, "thumbstick") ?? Control<Vector2Control>(d, "primary2DAxis"))?.ReadValue() ?? Vector2.zero;
+        if (b.ControlName == "trigger") return new Vector2(Control<AxisControl>(d, "trigger")?.ReadValue() ?? 0, 0);
+        if (b.ControlName == "grip") return new Vector2(Control<AxisControl>(d, "grip")?.ReadValue() ?? 0, 0);
         return Vector2.zero;
     }
     static bool ReadButton(Binding b)
     {
         var d = Device(b.Hand);
         if (d == null) return b.Held = false;
-        var path = b.Path.Substring(b.Path.LastIndexOf('/') + 1);
+        var path = b.ControlName;
         float value;
         if (path == "joystick" && b.Mode == "dpad")
         {
@@ -273,7 +291,7 @@ internal static class InputAdapter
     }
     static Sample GetSample(string path, int source)
     {
-        var key = (path.ToLowerInvariant(), source);
+        var key = (path, source);
         if (!Samples.TryGetValue(key, out var sample)) Samples[key] = sample = new();
         if (sample.Frame == Time.frameCount) return sample;
         sample.Frame = Time.frameCount;
@@ -294,10 +312,11 @@ internal static class InputAdapter
         foreach (var chord in chords)
         {
             bool chordActive = chord.Inputs.Length > 0;
-            bool chordMatchesSource = source == 0 || chord.Inputs.Any(binding => source == binding.Hand);
-            bool chordHeld = chordMatchesSource && chord.Inputs.Length > 0;
+            bool chordMatchesSource = source == 0;
+            bool chordHeld = chord.Inputs.Length > 0;
             foreach (var b in chord.Inputs)
             {
+                chordMatchesSource |= source == b.Hand;
                 if (Device(b.Hand) == null || !BindingActive(b))
                 {
                     b.Held = false;
@@ -307,7 +326,7 @@ internal static class InputAdapter
                 chordHeld &= ReadButton(b);
             }
             active |= chordActive && chordMatchesSource;
-            if (chordHeld)
+            if (chordHeld && chordMatchesSource)
             {
                 held = true;
             }
@@ -323,10 +342,20 @@ internal static class InputAdapter
     {
         int hand = Hand(source);
         if (hand < 0) return false;
-        bool Available(Binding binding) => (hand == 0 || binding.Hand == hand) && Device(binding.Hand) != null && BindingActive(binding);
-        if (Bindings.TryGetValue(path, out var bindings) && bindings.Any(Available)) return true;
-        if (Chords.TryGetValue(path, out var chords) && chords.Any(chord => chord.Inputs.Length > 0 &&
-            (hand == 0 || chord.Inputs.Any(binding => binding.Hand == hand)) && chord.Inputs.All(binding => Device(binding.Hand) != null && BindingActive(binding)))) return true;
+        if (Bindings.TryGetValue(path, out var bindings))
+            foreach (var binding in bindings)
+                if ((hand == 0 || binding.Hand == hand) && Device(binding.Hand) != null && BindingActive(binding)) return true;
+        if (Chords.TryGetValue(path, out var chords))
+            foreach (var chord in chords)
+            {
+                bool available = chord.Inputs.Length > 0, matchesSource = hand == 0;
+                foreach (var binding in chord.Inputs)
+                {
+                    matchesSource |= binding.Hand == hand;
+                    available &= Device(binding.Hand) != null && BindingActive(binding);
+                }
+                if (available && matchesSource) return true;
+            }
         if (path.EndsWith("/posel", StringComparison.OrdinalIgnoreCase)) return Device(1) != null;
         if (path.EndsWith("/poser", StringComparison.OrdinalIgnoreCase)) return Device(2) != null;
         return false;
@@ -346,12 +375,17 @@ internal static class InputAdapter
         bool valid = device != null && (tracking != null ? tracking.isPressed :
             trackingState != null && (trackingState.ReadValue() & 3) == 3);
         var velocity = Control<Vector3Control>(device, "deviceVelocity")?.ReadValue() ?? Vector3.zero;
-        if (!valid) velocity = Vector3.zero;
         if (!PoseSamples.TryGetValue(hand, out var previous)) PoseSamples[hand] = previous = new PoseSample();
-        if (previous.Frame != Time.frameCount)
+        if (!valid)
+        {
+            velocity = Vector3.zero;
+            previous.Valid = false;
+            previous.Velocity = Vector3.zero;
+        }
+        else if (previous.Frame != Time.frameCount || !previous.Valid)
         {
             float dt = Mathf.Clamp(Time.unscaledTime - previous.Time, 1f / 240f, .25f);
-            if (velocity.sqrMagnitude < .0001f && previous.Valid && valid) velocity = (position - previous.Position) / dt;
+            if (velocity.sqrMagnitude < .0001f && previous.Valid) velocity = (position - previous.Position) / dt;
             previous.Frame = Time.frameCount; previous.Valid = valid; previous.Position = position;
             previous.Velocity = velocity; previous.Time = Time.unscaledTime;
         }

@@ -39,6 +39,7 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
         internal Vector3 PhysicalPalm => Solver.Pose.position + Solver.Pose.rotation * Palm;
     }
     internal static OpenXRPhysicalHands Current;
+    static bool installed, poseSubscribed, equipmentSubscribed;
     static Func<Hand> leftHand, rightHand;
     static Func<bool> useControls, firstPerson, twoHanded;
     static Func<bool> rightDominant;
@@ -68,10 +69,12 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
 
     internal static void Install(Harmony harmony)
     {
+        if (installed) return;
         if (VRGameplay.Options.PhysicalContact)
         {
             OpenXRTrackedEquipment.Install(harmony);
             OpenXRTrackedEquipment.Attached += OpenXRPhysicalEquipment.Attach;
+            equipmentSubscribed = true;
         }
         var vr = AccessTools.TypeByName("ValheimVRMod.VRCore.VRPlayer");
         leftHand = AccessTools.MethodDelegate<Func<Hand>>(AccessTools.PropertyGetter(vr, "leftHand"));
@@ -93,6 +96,7 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
         // existing hand/weapon/IK consumers. The action pose and its velocity
         // remain the untouched tracked input used by native swing detection.
         VRPoseDriver.PosePublished += ConstrainPose;
+        poseSubscribed = true;
         harmony.Patch(AccessTools.Method(typeof(ItemDrop), "CanPickup"),
             postfix: new HarmonyMethod(typeof(OpenXRPhysicalHands), nameof(ProtectHeldItem)));
         harmony.Patch(AccessTools.Method(typeof(ItemDrop), "AutoStackItems"),
@@ -104,16 +108,62 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
         foreach (var method in new[] { "OnTriggerEnter", "OnTriggerStay" })
             harmony.Patch(AccessTools.Method("ValheimVRMod.Scripts.FistCollision:" + method),
                 prefix: new HarmonyMethod(typeof(OpenXRPhysicalHands), nameof(FreeFist)));
-        var fistType = AccessTools.TypeByName("ValheimVRMod.Scripts.FistCollision");
-        nativeGrabType = AccessTools.Field(fistType, "lastGrabbedType");
-        nativeGrabNone = Enum.ToObject(nativeGrabType.FieldType, 0);
-        harmony.Patch(AccessTools.PropertyGetter(fistType, "isGrabbingJumpingAid"),
-            postfix: new HarmonyMethod(typeof(OpenXRPhysicalHands), nameof(ReleaseWorldGrip)));
+        if (VRGameplay.Options.PhysicalContact)
+        {
+            var fistType = AccessTools.TypeByName("ValheimVRMod.Scripts.FistCollision");
+            nativeGrabType = AccessTools.Field(fistType, "lastGrabbedType");
+            nativeGrabNone = Enum.ToObject(nativeGrabType.FieldType, 0);
+            harmony.Patch(AccessTools.PropertyGetter(fistType, "isGrabbingJumpingAid"),
+                postfix: new HarmonyMethod(typeof(OpenXRPhysicalHands), nameof(ReleaseWorldGrip)));
+        }
+        installed = true;
+    }
+    internal static void Uninstall()
+    {
+        installed = false;
+        // Remove subscriptions even after a partially completed Install.
+        if (poseSubscribed) VRPoseDriver.PosePublished -= ConstrainPose;
+        if (equipmentSubscribed) OpenXRTrackedEquipment.Attached -= OpenXRPhysicalEquipment.Attach;
+        poseSubscribed = equipmentSubscribed = false;
+        var current = Current;
+        Current = null;
+        if (current)
+        {
+            if (current.Left.Grab) current.Left.Grab.Dispose();
+            if (current.Right.Grab) current.Right.Grab.Dispose();
+            current.enabled = false;
+            current.ResetHands();
+            current.Left.Solver?.Dispose(); current.Right.Solver?.Dispose();
+            current.HandRig = null;
+            Destroy(current);
+        }
+        // Release-grace components outlive the hand reference. Restore their
+        // native item settings now, before the plugin's hooks are removed.
+        for (int i = OpenXRPhysicalGrab.ProtectedItems.Count - 1; i >= 0; i--)
+        {
+            var grab = OpenXRPhysicalGrab.ProtectedItems[i];
+            if (grab) grab.Dispose();
+        }
+        OpenXRPhysicalGrab.ProtectedItems.Clear();
+        for (int i = OpenXRPhysicalEquipment.Items.Count - 1; i >= 0; i--)
+        {
+            var equipment = OpenXRPhysicalEquipment.Items[i];
+            if (equipment) { equipment.enabled = false; Destroy(equipment); }
+        }
+        OpenXRPhysicalEquipment.Items.Clear();
+        leftHand = rightHand = null;
+        useControls = firstPerson = twoHanded = rightDominant = null;
+        leftFist = rightFist = leftWeapon = rightWeapon = vrik = null;
+        gestureType = null;
+        gestureSource = gestureFree = null;
+        nativeGrabType = null; nativeGrabNone = null;
+        Array.Clear(Nearby, 0, Nearby.Length);
+        Array.Clear(SightHits, 0, SightHits.Length);
     }
     static void Ensure()
     {
-        if (!VRBackendHost.IsReady || !Player.m_localPlayer || !useControls()) return;
-        if (Current && Current.player != Player.m_localPlayer) { Destroy(Current); Current = null; }
+        if (!installed || !VRBackendHost.IsReady || !Player.m_localPlayer || !useControls()) return;
+        if (Current && Current.player != Player.m_localPlayer) { Current.enabled = false; Destroy(Current); Current = null; }
         if (!Current) Current = Player.m_localPlayer.gameObject.AddComponent<OpenXRPhysicalHands>();
     }
     void Awake()
@@ -287,6 +337,7 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
 
     void Update()
     {
+        if (!installed) { ResetHands(); return; }
         // Resolve native gesture delegates and IK fields during loading, rather
         // than putting first-use reflection on the first grab/contact frame.
         if (Time.unscaledTime >= prepareAt && (!Left.Gesture || !Right.Gesture || !rig))
@@ -369,6 +420,8 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
     void UpdateGrip(HandState state)
     {
         bool down = VRInputActions.valheim_Grab.GetState(state.Source);
+        if (!VRGameplay.Options.PhysicalGrabbing && !VRGameplay.Options.CreatureGrabbing)
+        { Release(state); state.Grip = down; return; }
         if (!state.Active || !down) { Release(state); state.Grip = down; return; }
         if (state.Grab || state.CreatureGrip)
         {
@@ -470,7 +523,7 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
     static void ReleaseWorldGrip(Component __instance, bool ___isRightHand, Vector3 ___lastGrabbedPoint, ref bool __result)
     {
         var current = Current;
-        if (!__result || !current) return;
+        if (!VRGameplay.Options.PhysicalContact || !__result || !current) return;
         var state = ___isRightHand ? current.Right : current.Left;
         bool release = !state.Active || state.Solver.Yielding
             || VRInputActions.valheim_Walk.GetAxis(VRInputSource.Any).sqrMagnitude > .04f;

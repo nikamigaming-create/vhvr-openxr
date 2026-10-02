@@ -11,7 +11,7 @@ internal sealed class OpenXRPhysicalGrab : MonoBehaviour
     internal static readonly List<OpenXRPhysicalGrab> ProtectedItems = new();
     internal Rigidbody Body { get; private set; }
     internal ItemDrop Item => item;
-    internal bool Protected => held || Time.unscaledTime < releaseAt + 1;
+    internal bool Protected => stateCaptured && (held || Time.unscaledTime < releaseAt + 1);
     internal Vector3 GripPoint => transform.TransformPoint(anchor);
     internal Quaternion HandRotation => transform.rotation * Quaternion.Inverse(relativeRotation);
     Vector3 PhysicsGripPoint => Body.position + Body.rotation * Vector3.Scale(anchor, transform.lossyScale);
@@ -21,7 +21,7 @@ internal sealed class OpenXRPhysicalGrab : MonoBehaviour
     ZNetView view;
     Vector3 anchor, previousTarget;
     Quaternion relativeRotation;
-    bool held, autoPickup;
+    bool held, autoPickup, stateCaptured;
     float releaseAt;
     CollisionDetectionMode collisionMode;
     RigidbodyInterpolation interpolation;
@@ -38,9 +38,11 @@ internal sealed class OpenXRPhysicalGrab : MonoBehaviour
         anchor = transform.InverseTransformPoint(hand.PhysicalPalm);
         relativeRotation = Quaternion.Inverse(hand.Solver.Pose.rotation) * Body.rotation;
         previousTarget = hand.Tracked.position + hand.Tracked.rotation * hand.Palm;
-        autoPickup = item.m_autoPickup; item.m_autoPickup = false;
+        autoPickup = item.m_autoPickup;
         collisionMode = Body.collisionDetectionMode; iterations = Body.solverIterations;
         interpolation = Body.interpolation;
+        stateCaptured = true;
+        item.m_autoPickup = false;
         Body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
         Body.interpolation = RigidbodyInterpolation.Interpolate;
         Body.solverIterations = Mathf.Max(iterations, 12);
@@ -90,10 +92,23 @@ internal sealed class OpenXRPhysicalGrab : MonoBehaviour
     }
     void RestoreBody()
     {
-        if (!Body) return;
-        Body.collisionDetectionMode = collisionMode;
-        Body.interpolation = interpolation;
-        Body.solverIterations = iterations;
+        if (!stateCaptured) return;
+        stateCaptured = false;
+        if (Body)
+        {
+            Body.collisionDetectionMode = collisionMode;
+            Body.interpolation = interpolation;
+            Body.solverIterations = iterations;
+        }
+        if (item) item.m_autoPickup = autoPickup;
+    }
+    internal void Dispose()
+    {
+        Release();
+        ProtectedItems.Remove(this);
+        RestoreBody();
+        enabled = false;
+        Destroy(this);
     }
     void Update()
     {
@@ -104,7 +119,6 @@ internal sealed class OpenXRPhysicalGrab : MonoBehaviour
     {
         ProtectedItems.Remove(this);
         RestoreBody();
-        if (item) item.m_autoPickup = autoPickup;
         if (hand != null && hand.Grab == this) hand.Grab = null;
     }
 }

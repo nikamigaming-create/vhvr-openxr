@@ -1,5 +1,6 @@
 using ValheimVRMod.VRCore.Backends;
 using System;
+using System.Collections.Generic;
 using HarmonyLib;
 using UnityEngine;
 
@@ -14,12 +15,14 @@ internal sealed class OpenXRTrackedEquipment : MonoBehaviour
     // Baseline visibility has no dependency on optional contact/force classes.
     internal static event Action<GameObject, VRInputSource, VisEquipment> Attached;
     static bool installed;
+    static readonly List<OpenXRTrackedEquipment> Guards = new();
     static readonly Func<bool> UseVrControls = AccessTools.MethodDelegate<Func<bool>>(
         AccessTools.Method("ValheimVRMod.Utilities.VHVRConfig:UseVrControls"));
     Renderer[] renderers;
     bool[] previous;
     VRInputSource hand;
     bool hidden;
+    bool registered;
 
     internal static void Install(Harmony harmony)
     {
@@ -27,6 +30,19 @@ internal sealed class OpenXRTrackedEquipment : MonoBehaviour
         harmony.Patch(AccessTools.Method(typeof(VisEquipment), "AttachItem"),
             postfix: new HarmonyMethod(typeof(OpenXRTrackedEquipment), nameof(AttachedItem)));
         installed = true;
+    }
+
+    internal static void Shutdown()
+    {
+        installed = false;
+        foreach (var guard in Guards)
+        {
+            if (!guard) continue;
+            guard.SetSuppressed(false);
+            guard.enabled = false;
+            Object.Destroy(guard);
+        }
+        Guards.Clear();
     }
 
     static void AttachedItem(VisEquipment __instance, GameObject __result, int itemHash,
@@ -58,6 +74,11 @@ internal sealed class OpenXRTrackedEquipment : MonoBehaviour
         if (paired) source = VRInputSource.Any;
         if (source == VRInputSource.Any && !paired) return;
         var guard = item.GetComponent<OpenXRTrackedEquipment>() ?? item.AddComponent<OpenXRTrackedEquipment>();
+        if (!guard.registered)
+        {
+            guard.registered = true;
+            Guards.Add(guard);
+        }
         guard.SetSuppressed(false);
         guard.hand = source;
         Attached?.Invoke(item, source, equipment);
@@ -95,4 +116,9 @@ internal sealed class OpenXRTrackedEquipment : MonoBehaviour
     }
 
     void OnDisable() => SetSuppressed(false);
+    void OnDestroy()
+    {
+        SetSuppressed(false);
+        Guards.Remove(this);
+    }
 }

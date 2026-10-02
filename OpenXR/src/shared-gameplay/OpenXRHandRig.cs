@@ -64,11 +64,11 @@ internal sealed class OpenXRHandRig
         Right = Make(right, rightWrist, rightTarget, "rightHandBone");
         var animator = player.GetComponentInChildren<Animator>();
         if (!animator || !animator.isHuman || !left.Gesture || !right.Gesture) return;
-        Transform clone = null;
+        var skeletonRoot = animator.transform;
+        var copies = new Dictionary<Transform, Transform>();
         try
         {
-            var copies = new Dictionary<Transform, Transform>();
-            clone = CopySkeleton(animator.transform, null, copies);
+            var clone = CopySkeleton(skeletonRoot, null, copies);
             clone.gameObject.SetActive(false);
             using var handler = new HumanPoseHandler(animator.avatar, clone);
             var pose = new HumanPose();
@@ -98,7 +98,13 @@ internal sealed class OpenXRHandRig
                 VRLog.Info($"OpenXR native hand rig: 30 avatar finger joints; anatomical grip-to-wrist L={Left.GripFromWrist.position:F3}, R={Right.GripFromWrist.position:F3} m.");
         }
         catch (Exception error) { VRLog.Error("OpenXR native hand rig initialization failed: " + error); }
-        finally { if (clone) UnityEngine.Object.Destroy(clone.gameObject); }
+        finally
+        {
+            // CopySkeleton can fail midway through a large/modded hierarchy.
+            // Its dictionary owns the root even before recursion returns.
+            if (copies.TryGetValue(skeletonRoot, out var clone) && clone)
+                UnityEngine.Object.Destroy(clone.gameObject);
+        }
     }
 
     static Transform CopySkeleton(Transform original, Transform parent, Dictionary<Transform, Transform> copies)

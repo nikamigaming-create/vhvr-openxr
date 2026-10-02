@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <UseAppHost>false</UseAppHost>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AdapterSource Condition="'$(AdapterSource)' == ''">../../src/nikami-openxr/InputAdapter.cs</AdapterSource>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(AdapterSource)" Link="Production/InputAdapter.cs" />
+    <Compile Include="../../../ValheimVRMod/VRCore/Backends/IVRBackend.cs" Link="Production/IVRBackend.cs" />
+    <Reference Include="Valve.Newtonsoft.Json">
+      <HintPath>$(ValheimDir)/Valheim_Data/Managed/Valve.Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <None Include="../../../Unity/ValheimVR/Assets/StreamingAssets/SteamVR/bindings_oculus_touch.json" Link="fixtures/upstream/SteamVR/bindings_oculus_touch.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="fixtures/priority/SteamVR/bindings_oculus_touch.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

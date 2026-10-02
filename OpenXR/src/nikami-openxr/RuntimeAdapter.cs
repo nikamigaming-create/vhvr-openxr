@@ -4,7 +4,6 @@ using System.Reflection;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Emit;
-using System.Runtime.CompilerServices;
 using HarmonyLib;
 using UnityEngine;
 using ValheimVRMod.VRCore.Backends;
@@ -20,10 +19,11 @@ internal static class RuntimeAdapter
     static Func<Component> leftEstimator, rightEstimator;
     static AccessTools.FieldRef<MeshRenderer> hipTrackerRenderer;
     static TransformSlot trackedPelvis, pelvis;
-    sealed class RenderFrameStamp { internal int Frame = -1; }
-    static readonly ConditionalWeakTable<MonoBehaviour, RenderFrameStamp> RenderFrames = new();
+    static readonly RenderFrameGate RenderFrames = new();
     static int lastVrCameraQualityFrame = -1;
     static readonly List<Behaviour> cameraEffects = new();
+    static MeshRenderer ownedHipRenderer;
+    static Transform reparentedPelvis, previousPelvisParent, replacementPelvisParent;
 
     // Resolve metadata once; keep reading the live Unity objects after scene loads.
     sealed class TransformSlot
@@ -31,6 +31,7 @@ internal static class RuntimeAdapter
         readonly Func<Transform> get;
         readonly Action<Transform> set;
         readonly string objectName;
+        Transform owned;
         internal TransformSlot(Type type, string name, string objectName)
         {
             const BindingFlags flags = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
@@ -57,8 +58,16 @@ internal static class RuntimeAdapter
             if (set == null) return null;
             var go = new GameObject(objectName) { hideFlags = HideFlags.HideAndDontSave };
             current = go.transform;
+            owned = current;
             set(current);
             return current;
+        }
+        internal void Dispose()
+        {
+            if (!owned) return;
+            if (get != null && set != null && get() == owned) set(null);
+            UnityEngine.Object.Destroy(owned.gameObject);
+            owned = null;
         }
     }
 
@@ -147,14 +156,33 @@ internal static class RuntimeAdapter
         }
         h.Patch(AccessTools.Method("ValheimVRMod.Scripts.LocalWeaponWield:OnDestroy"), transpiler: new HarmonyMethod(typeof(RuntimeAdapter), nameof(SafeWeaponCleanup)));
     }
-    static bool RenderOncePerFrame(MonoBehaviour __instance)
+    internal static void Shutdown()
+    {
+        Camera.onPreCull -= ConfigureOpenXrCamera;
+        OpenXRInputFocus.Shutdown();
+        OpenXREquipmentQuality.Shutdown();
+        RestorePelvisParent();
+        pelvis?.Dispose();
+        trackedPelvis?.Dispose();
+        pelvis = trackedPelvis = null;
+        if (ownedHipRenderer)
+        {
+            if (hipTrackerRenderer != null && hipTrackerRenderer() == ownedHipRenderer) hipTrackerRenderer() = null;
+            UnityEngine.Object.Destroy(ownedHipRenderer.gameObject);
+        }
+        ownedHipRenderer = null;
+        hipTrackerRenderer = null;
+        worldCamera = null;
+        leftHand = rightHand = null;
+        leftEstimator = rightEstimator = null;
+        cameraEffects.Clear();
+        RenderFrames.Clear();
+        lastVrCameraQualityFrame = -1;
+    }
+    static bool RenderOncePerFrame(MonoBehaviour __instance, MethodBase __originalMethod)
     {
         if (!__instance) return false;
-        var stamp = RenderFrames.GetOrCreateValue(__instance);
-        int frame = Time.frameCount;
-        if (stamp.Frame == frame) return false;
-        stamp.Frame = frame;
-        return true;
+        return RenderFrames.TryEnter(__instance, __originalMethod, Time.frameCount);
     }
     static bool SelectMainCamera(string name, ref Camera __result)
     {
@@ -277,15 +305,10 @@ internal static class RuntimeAdapter
         if (to && to.name == "VRCamera")
             to.allowHDR = true;
     }
-    static void PreserveUnderwaterResources(Component __instance, GameObject ___underwaterLightBlocker)
+    static void PreserveUnderwaterResources(GameObject ___underwaterLightBlocker)
     {
         if (!___underwaterLightBlocker) return;
         UnityEngine.Object.DontDestroyOnLoad(___underwaterLightBlocker);
-        var owner = __instance.GetComponent<OpenXRSceneResources>() ??
-            __instance.gameObject.AddComponent<OpenXRSceneResources>();
-        owner.Own(___underwaterLightBlocker);
-        var renderer = ___underwaterLightBlocker.GetComponent<Renderer>();
-        if (renderer && renderer.sharedMaterial) owner.Own(renderer.sharedMaterial);
     }
     static bool CreatePanelCameraOnce(Camera ____uiPanelCamera) => !____uiPanelCamera;
     static void EnsureHipRenderer()
@@ -297,11 +320,25 @@ internal static class RuntimeAdapter
             sentinel.hideFlags = HideFlags.HideAndDontSave;
             var mesh = sentinel.AddComponent<MeshRenderer>();
             mesh.enabled = false;
+            ownedHipRenderer = mesh;
             hipTrackerRenderer() = mesh;
         }
         var tracked = trackedPelvis.Ensure();
         var currentPelvis = pelvis.Ensure();
-        if (currentPelvis && tracked && currentPelvis.parent != tracked) currentPelvis.SetParent(tracked, false);
+        if (currentPelvis && tracked && currentPelvis.parent != tracked)
+        {
+            RestorePelvisParent();
+            reparentedPelvis = currentPelvis;
+            previousPelvisParent = currentPelvis.parent;
+            replacementPelvisParent = tracked;
+            currentPelvis.SetParent(tracked, false);
+        }
+    }
+    static void RestorePelvisParent()
+    {
+        if (reparentedPelvis && reparentedPelvis.parent == replacementPelvisParent)
+            reparentedPelvis.SetParent(previousPelvisParent, false);
+        reparentedPelvis = previousPelvisParent = replacementPelvisParent = null;
     }
     static bool SkipIncompleteShieldParry()
     {
@@ -322,18 +359,4 @@ internal static class RuntimeAdapter
         }
     }
     static GameObject LiveObject(Component component) => component ? component.gameObject : null;
-}
-
-// Resources which must follow the persistent VR camera's lifetime but must not
-// inherit its head transform. Only objects created by VHVR's Init are registered.
-internal sealed class OpenXRSceneResources : MonoBehaviour
-{
-    readonly HashSet<UnityEngine.Object> owned = new();
-    internal void Own(UnityEngine.Object resource) => owned.Add(resource);
-    void OnDestroy()
-    {
-        foreach (var resource in owned)
-            if (resource) Destroy(resource);
-        owned.Clear();
-    }
 }

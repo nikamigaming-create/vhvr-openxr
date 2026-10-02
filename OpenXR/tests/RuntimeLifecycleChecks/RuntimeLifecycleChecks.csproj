@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <UseAppHost>false</UseAppHost>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/nikami-openxr/RenderFrameGate.cs" Link="Production/RenderFrameGate.cs" />
+    <Compile Include="../../src/nikami-openxr/OpenXRInputFocus.cs" Link="Production/OpenXRInputFocus.cs" />
+  </ItemGroup>
+</Project>

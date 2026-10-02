@@ -227,6 +227,13 @@ public class Outline : MonoBehaviour {
     }
   }
 
+  void OnDestroy() {
+    if (outlineMaskMaterial != null) Destroy(outlineMaskMaterial);
+    if (outlineFillMaterial != null) Destroy(outlineFillMaterial);
+    outlineMaskMaterial = null;
+    outlineFillMaterial = null;
+  }
+
   void Bake() {
 
     // Generate smooth normals for each mesh

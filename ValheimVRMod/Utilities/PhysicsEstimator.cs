@@ -18,6 +18,7 @@ namespace ValheimVRMod.Utilities
         private List<Vector3> sparseSnapshots = new List<Vector3>(); // Sparsely snapshotted positions for estimating longest locomotion in a time span.
         private Vector3? cachedAverageVelocityInSnapshots = null;
         private LineRenderer debugVelocityLine;
+        private Material debugVelocityMaterial;
         private Hand hand = null;
 
         private int sparseSnapshotTicker = 0;
@@ -99,9 +100,12 @@ namespace ValheimVRMod.Utilities
             }
         }
 
-        void Destroy()
+        void OnDestroy()
         {
-            Destroy(debugVelocityLine.gameObject);
+            if (debugVelocityMaterial != null) Destroy(debugVelocityMaterial);
+            debugVelocityMaterial = null;
+            if (debugVelocityLine != null) Destroy(debugVelocityLine.gameObject);
+            debugVelocityLine = null;
         }
 
         public Vector3 GetVelocity(Vector3? position = null)
@@ -206,7 +210,9 @@ namespace ValheimVRMod.Utilities
             debugVelocityLine.useWorldSpace = true;
             debugVelocityLine.widthMultiplier = 0.006f;
             debugVelocityLine.positionCount = 2;
-            debugVelocityLine.material.color = new Color(0.9f, 0.33f, 0.31f);
+            debugVelocityMaterial = new Material(debugVelocityLine.sharedMaterial);
+            debugVelocityMaterial.color = new Color(0.9f, 0.33f, 0.31f);
+            debugVelocityLine.sharedMaterial = debugVelocityMaterial;
             debugVelocityLine.enabled = false;
         }
     }

@@ -29,7 +29,7 @@ namespace ValheimVRMod.Scripts
 
         void Update()
         {
-            if (!VRPlayer.inFirstPerson || !EnsureBodyRenderer())
+            if (pendingRenderersToFix.Count == 0 || !VRPlayer.inFirstPerson || !EnsureBodyRenderer())
             {
                 return;
             }
