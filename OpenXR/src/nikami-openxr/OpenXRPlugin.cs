@@ -11,12 +11,11 @@ using UnityEngine.XR;
 using UnityEngine.XR.OpenXR;
 using UnityEngine.XR.OpenXR.Features;
 using UnityEngine.XR.OpenXR.Features.Interactions;
-using Valve.VR;
 using ValheimVRMod.VRCore.Backends;
 
 namespace Nikami.OpenXR;
 
-[BepInPlugin("nikami.openxr", "VHVR Backends", "0.2.0")]
+[BepInPlugin("nikami.openxr", "VHVR Backends", "0.3.0")]
 [BepInDependency("org.bepinex.plugins.valheimvrmod")]
 [DefaultExecutionOrder(-30000)]
 public sealed class OpenXRPlugin : BaseUnityPlugin
@@ -69,22 +68,27 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
         {
             var configured = Config.Bind("Runtime", "Backend", "openxr", "VR backend: openxr or openvr (steamvr alias). Restart required; -vrbackend overrides this setting.");
             var choice = VRBackendHost.Choose(configured.Value, arguments);
+            VRGameplay.Configure(new VRGameplayOptions(
+                Config.Bind("Gameplay", "EnablePhysicalContact", false, "Opt in to added hand/weapon contact, impact feedback and native object forces. Applies to both backends. Restart required.").Value,
+                Config.Bind("Gameplay", "EnablePhysicalGrabbing", false, "Opt in to added physical loose-item grabbing and throwing. Applies to both backends. Restart required.").Value,
+                Config.Bind("Gameplay", "EnableCreatureGrabbing", false, "Opt in to added small-creature restraint and repelling. Applies to both backends. Restart required.").Value,
+                Config.Bind("Gameplay", "EnableFingerArticulation", false, "Opt in to added controller-driven finger articulation and contact curl. Applies to both backends. Restart required.").Value));
+            if (VRGameplay.Options.Any) OpenXRPhysicalHands.Install(harmony);
+            Log.LogInfo($"Optional gameplay: contact={VRGameplay.Options.PhysicalContact}, item-grab={VRGameplay.Options.PhysicalGrabbing}, creature-grab={VRGameplay.Options.CreatureGrabbing}, fingers={VRGameplay.Options.FingerArticulation}. Defaults are off; restart required.");
             if (choice == VRBackendKind.OpenVR)
             {
                 VRBackendHost.Select(new OpenVRBackend());
                 usingOpenVR = true;
                 previousRunInBackground = Application.runInBackground;
-                OpenXRPhysicalHands.Install(harmony);
                 Camera.onPreRender += CountVRCameraFrame;
-                Log.LogInfo("Selected original OpenVR/SteamVR backend with shared hand/physics gameplay. OpenXR native runtime and SDK compatibility patches remain inactive.");
+                Log.LogInfo("Selected original OpenVR/SteamVR backend. OpenXR native runtime and patches remain inactive.");
                 return;
             }
             VRBackendHost.Select(new OpenXRBackend());
             previousRunInBackground = Application.runInBackground;
             Application.runInBackground = true;
             RuntimeAdapter.Install(harmony);
-            InputAdapter.Install(harmony);
-            NikamiIntegration.Install(harmony);
+            InputAdapter.Install();
             // Native OpenXR projection layers already contain the world-space GUI.
             Patch(harmony, "ValheimVRMod.Utilities.VHVRConfig:GetUseOverlayGui", nameof(NoOverlay));
             Camera.onPreRender += CountVRCameraFrame;
@@ -158,9 +162,8 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
             Loader = ScriptableObject.CreateInstance<OpenXRLoader>();
             DontDestroyOnLoad(Loader);
             if (!Loader.Initialize()) throw new InvalidOperationException("Unity OpenXR loader initialization failed; see Player.log.");
-            SteamVR_Actions.PreInitialize();
-            RuntimeAdapter.InitializeManagedActions();
             InputAdapter.LoadBindings();
+            VRInputActions.Default.Activate();
             Ready = true;
             Log.LogInfo("Native Unity OpenXR initialized: " + OpenXRRuntime.name + " " + OpenXRRuntime.version);
             __result = true;
@@ -225,8 +228,7 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
         // Update controller actions before game/UI code asks for them. The
         // upstream behaviour may update again in its own phase, but its phase
         // can run after Valheim has already sampled this frame's inputs.
-        SteamVR_Input.UpdateNonVisualActions();
-        SteamVR_Input.UpdatePoseActions();
+        InputAdapter.Pump();
         if (SessionStarted)
         {
             UpdateWatchdog();

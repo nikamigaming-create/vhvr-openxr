@@ -1,7 +1,6 @@
 using ValheimVRMod.VRCore.Backends;
 using System.Collections.Generic;
 using UnityEngine;
-using Valve.VR;
 
 namespace Nikami.OpenXR;
 
@@ -23,6 +22,7 @@ internal sealed class OpenXRPhysicalEquipment : MonoBehaviour
 
     internal static void Attach(GameObject item, VRInputSource hand, VisEquipment equipment)
     {
+        if (!VRGameplay.Options.PhysicalContact) return;
         var component = item.GetComponent<OpenXRPhysicalEquipment>() ?? item.AddComponent<OpenXRPhysicalEquipment>();
         component.ClearParts();
         foreach (var mesh in item.GetComponentsInChildren<MeshFilter>(true))

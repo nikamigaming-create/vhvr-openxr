@@ -428,7 +428,7 @@ namespace ValheimVRMod.VRCore.UI
             {
                 return false;
             }
-            var hmd = VRPlayer.instance.GetComponent<Valve.VR.InteractionSystem.Player>().hmdTransform;
+            var hmd = VRRig.Current.Head;
             var targetLocationLeft = hmd.localPosition + hmd.localRotation * RECENTER_POSE_POSITION_L;
             var targetLocationRight = hmd.localPosition + hmd.localRotation * RECENTER_POSE_POSITION_R;
             var leftHand = poseL.localPosition;

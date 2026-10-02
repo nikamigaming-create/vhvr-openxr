@@ -2,15 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
-using HarmonyLib;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
 using UnityEngine.InputSystem.XR;
 using UnityEngine.XR;
 using Valve.Newtonsoft.Json.Linq;
-using Valve.VR;
+using ValheimVRMod.VRCore.Backends;
 using XRDevice = UnityEngine.InputSystem.InputDevice;
 
 namespace Nikami.OpenXR;
@@ -34,8 +32,8 @@ internal static class InputAdapter
         internal int Frame = -1;
         internal Vector2 Axis;
         internal bool Held;
-        internal InputDigitalActionData_t Digital;
-        internal InputAnalogActionData_t Analog;
+        internal VRDigitalState Digital;
+        internal Vector2 Delta;
     }
     sealed class PoseSample
     {
@@ -43,45 +41,85 @@ internal static class InputAdapter
         internal bool Valid;
         internal Vector3 Position;
         internal Vector3 Velocity;
+        internal float Time;
     }
-    static readonly Dictionary<string, ulong> Handles = new(StringComparer.OrdinalIgnoreCase) {
-        ["/user/hand/left"] = 1, ["/user/hand/right"] = 2, ["/user/head"] = 3
-    };
-    static readonly Dictionary<ulong, string> Paths = new() { [1] = "/user/hand/left", [2] = "/user/hand/right", [3] = "/user/head" };
-    static readonly Dictionary<ulong, string> ActionPaths = new();
     static readonly Dictionary<string, List<Binding>> Bindings = new(StringComparer.OrdinalIgnoreCase);
     static readonly Dictionary<string, List<Chord>> Chords = new(StringComparer.OrdinalIgnoreCase);
     static readonly List<Binding> AllBindings = new();
     static readonly Dictionary<Binding, int> ActivePriorities = new();
     static readonly Dictionary<string, int> ControlPriorities = new(StringComparer.OrdinalIgnoreCase);
-    static readonly Dictionary<(ulong, ulong), Sample> Samples = new();
-    static readonly Dictionary<ulong, PoseSample> PoseSamples = new();
+    static readonly Dictionary<(string, int), Sample> Samples = new();
+    static readonly Dictionary<int, PoseSample> PoseSamples = new();
     static readonly HashSet<string> Warned = new();
     static readonly XRDevice[] Devices = new XRDevice[4];
     static readonly Dictionary<XRDevice, Dictionary<string, InputControl>> Controls = new();
     static bool devicesResolved;
-    static ulong nextHandle = 100;
-    internal static void Install(Harmony harmony)
+    readonly struct SetState
+    {
+        internal readonly string Path;
+        internal readonly int Hand, Priority;
+        internal SetState(string path, int hand, int priority) { Path = path; Hand = hand; Priority = priority; }
+    }
+    sealed class DigitalListener
+    {
+        internal string Path;
+        internal VRInputSource Source;
+        internal bool Down;
+        internal Action<VRInputSource> Callback;
+    }
+    sealed class AxisListener
+    {
+        internal string Path;
+        internal VRInputSource Source;
+        internal Action<VRInputSource, Vector2, Vector2> Callback;
+    }
+    readonly struct Pulse
+    {
+        internal readonly VRInputSource Source;
+        internal readonly float At, Duration, Amplitude;
+        internal Pulse(VRInputSource source, float at, float duration, float amplitude)
+        { Source = source; At = at; Duration = duration; Amplitude = amplitude; }
+    }
+    static readonly List<SetState> Sets = new();
+    static readonly List<DigitalListener> DigitalListeners = new();
+    static readonly List<AxisListener> AxisListeners = new();
+    static readonly List<Pulse> Pulses = new();
+    static readonly HashSet<Action> UpdateListeners = new();
+    static event Action Updated;
+    static int dispatchedFrame = -1;
+    internal static void Install()
     {
         InputSystem.onDeviceChange += DeviceChanged;
-        foreach (var method in typeof(CVRInput).GetMethods(BindingFlags.Public | BindingFlags.Instance))
+        Application.onBeforeRender += VRPoseDriver.RefreshOpenXRPose;
+    }
+    internal static void Pump()
+    {
+        VRPoseDriver.RefreshOpenXRPose();
+        if (dispatchedFrame == Time.frameCount) return;
+        dispatchedFrame = Time.frameCount;
+        for (int i = Pulses.Count - 1; i >= 0; i--)
+            if (Time.unscaledTime >= Pulses[i].At)
+            { var pulse = Pulses[i]; Pulses.RemoveAt(i); SendPulse(pulse); }
+        for (int i = 0, count = DigitalListeners.Count; i < count; i++)
         {
-            if (method.ReturnType != typeof(EVRInputError)) continue;
-            string prefix = method.Name switch {
-                "GetDigitalActionData" => nameof(DigitalData),
-                "GetAnalogActionData" => nameof(AnalogData),
-                "GetPoseActionDataForNextFrame" => nameof(NextPoseData),
-                "GetPoseActionDataRelativeToNow" => nameof(RelativePoseData),
-                "GetOriginTrackedDeviceInfo" => nameof(OriginData),
-                "UpdateActionState" => nameof(ActionState),
-                _ => nameof(Dispatch)
-            };
-            harmony.Patch(method, new HarmonyMethod(typeof(InputAdapter), prefix));
+            var listener = DigitalListeners[i];
+            var state = ReadDigital(listener.Path, listener.Source);
+            if (listener.Down ? state.Down : state.Up) listener.Callback(listener.Source);
         }
+        for (int i = 0, count = AxisListeners.Count; i < count; i++)
+        {
+            var listener = AxisListeners[i];
+            var state = GetSample(listener.Path, Hand(listener.Source));
+            if (state.Delta.sqrMagnitude > .0000001f) listener.Callback(listener.Source, state.Axis, state.Delta);
+        }
+        Updated?.Invoke();
     }
     internal static void Shutdown()
     {
         InputSystem.onDeviceChange -= DeviceChanged;
+        Application.onBeforeRender -= VRPoseDriver.RefreshOpenXRPose;
+        DigitalListeners.Clear(); AxisListeners.Clear(); UpdateListeners.Clear(); Updated = null;
+        Sets.Clear(); Pulses.Clear(); Samples.Clear(); dispatchedFrame = -1;
         DeviceChanged(null, default);
     }
     static void DeviceChanged(XRDevice device, InputDeviceChange change)
@@ -94,6 +132,7 @@ internal static class InputAdapter
     }
     internal static void LoadBindings()
     {
+        Bindings.Clear(); Chords.Clear(); AllBindings.Clear(); Samples.Clear();
         var file = Path.Combine(Application.streamingAssetsPath, "SteamVR", "bindings_oculus_touch.json");
         var root = JObject.Parse(File.ReadAllText(file));
         foreach (var set in ((JObject)root["bindings"]).Properties())
@@ -130,24 +169,26 @@ internal static class InputAdapter
         AllBindings.Add(binding);
         return binding;
     }
-    static void UpdateActionSets(VRActiveActionSet_t[] sets)
+    static int Hand(VRInputSource source) => source == VRInputSource.LeftHand ? 1 :
+        source == VRInputSource.RightHand ? 2 : source == VRInputSource.Head ? 3 : source == VRInputSource.Any ? 0 : -1;
+    internal static void SetActionSet(string path, VRInputSource source, bool active, int priority, bool exclusive)
     {
-        ActivePriorities.Clear();
-        ControlPriorities.Clear();
-        foreach (var set in sets)
+        int hand = Hand(source);
+        if (hand < 0) return;
+        if (exclusive && active) Sets.Clear();
+        Sets.RemoveAll(set => set.Path.Equals(path, StringComparison.OrdinalIgnoreCase) && set.Hand == hand);
+        if (active) Sets.Add(new SetState(path, hand, priority));
+        ActivePriorities.Clear(); ControlPriorities.Clear();
+        foreach (var set in Sets)
+        foreach (var binding in AllBindings)
         {
-            if (!Paths.TryGetValue(set.ulActionSet, out var path)) continue;
-            foreach (var binding in AllBindings)
-            {
-                if (!binding.Set.Equals(path, StringComparison.OrdinalIgnoreCase) ||
-                    (set.ulRestrictedToDevice != 0 && set.ulRestrictedToDevice != (ulong)binding.Hand)) continue;
-                if (!ActivePriorities.TryGetValue(binding, out int priority) || set.nPriority > priority)
-                    ActivePriorities[binding] = set.nPriority;
-                if (!ControlPriorities.TryGetValue(binding.Path, out priority) || set.nPriority > priority)
-                    ControlPriorities[binding.Path] = set.nPriority;
-            }
+            if (!binding.Set.Equals(set.Path, StringComparison.OrdinalIgnoreCase) || (set.Hand != 0 && set.Hand != binding.Hand)) continue;
+            if (!ActivePriorities.TryGetValue(binding, out int current) || set.Priority > current) ActivePriorities[binding] = set.Priority;
+            if (!ControlPriorities.TryGetValue(binding.Path, out current) || set.Priority > current) ControlPriorities[binding.Path] = set.Priority;
         }
     }
+    internal static bool IsActionSetActive(string path, VRInputSource source) => Hand(source) >= 0 &&
+        Sets.Any(set => set.Path.Equals(path, StringComparison.OrdinalIgnoreCase) && (set.Hand == 0 || set.Hand == Hand(source) || source == VRInputSource.Any));
     static bool BindingActive(Binding binding)
     {
         // VHVR gives its UI action set priority over gameplay. Without this
@@ -155,12 +196,6 @@ internal static class InputAdapter
         // before Unity's UI can receive its pointer-release event.
         return ActivePriorities.TryGetValue(binding, out int priority) &&
             ControlPriorities.TryGetValue(binding.Path, out int highest) && priority == highest;
-    }
-    static ulong Handle(string path)
-    {
-        if (!Handles.TryGetValue(path ?? "", out var id)) { id = nextHandle++; Handles[path ?? ""] = id; Paths[id] = path ?? ""; }
-        if (path != null && path.StartsWith("/actions/", StringComparison.OrdinalIgnoreCase)) ActionPaths[id] = path;
-        return id;
     }
     internal static XRDevice Device(int hand)
     {
@@ -181,7 +216,7 @@ internal static class InputAdapter
     internal static bool TryGetVelocity(int hand, out Vector3 velocity)
     {
         velocity = Vector3.zero;
-        if (hand < 1 || hand > 2 || !PoseSamples.TryGetValue((ulong)hand, out var sample) || !sample.Valid)
+        if (hand < 1 || hand > 2 || !PoseSamples.TryGetValue(hand, out var sample) || !sample.Valid)
             return false;
         // PhysicsEstimator is normally sampled during FixedUpdate while the
         // OpenXR pose is published during the render/input update.  Accept a
@@ -236,32 +271,30 @@ internal static class InputAdapter
         }
         return b.Held = value >= (b.Held ? b.Release : b.Press);
     }
-    static Sample GetSample(ulong action, ulong source)
+    static Sample GetSample(string path, int source)
     {
-        var key = (action, source);
+        var key = (path.ToLowerInvariant(), source);
         if (!Samples.TryGetValue(key, out var sample)) Samples[key] = sample = new();
         if (sample.Frame == Time.frameCount) return sample;
         sample.Frame = Time.frameCount;
         bool held = false, active = false;
         Vector2 axis = Vector2.zero;
-        ulong origin = source;
-        if (Paths.TryGetValue(action, out var path) && Bindings.TryGetValue(path, out var bindings))
+        if (Bindings.TryGetValue(path, out var bindings))
         foreach (var b in bindings)
         {
-            if (source != 0 && source != (ulong)b.Hand) continue;
+            if (source != 0 && source != b.Hand) continue;
             if (Device(b.Hand) == null || !BindingActive(b)) continue;
             active = true;
             var press = ReadButton(b);
             var value = ReadAxis(b);
-            if (press || value.sqrMagnitude > axis.sqrMagnitude) origin = (ulong)b.Hand;
             held |= press;
             if (value.sqrMagnitude > axis.sqrMagnitude) axis = value;
         }
-        if (Paths.TryGetValue(action, out path) && Chords.TryGetValue(path, out var chords))
+        if (Chords.TryGetValue(path, out var chords))
         foreach (var chord in chords)
         {
             bool chordActive = chord.Inputs.Length > 0;
-            bool chordMatchesSource = source == 0 || chord.Inputs.Any(binding => source == (ulong)binding.Hand);
+            bool chordMatchesSource = source == 0 || chord.Inputs.Any(binding => source == binding.Hand);
             bool chordHeld = chordMatchesSource && chord.Inputs.Length > 0;
             foreach (var b in chord.Inputs)
             {
@@ -277,127 +310,91 @@ internal static class InputAdapter
             if (chordHeld)
             {
                 held = true;
-                origin = (ulong)chord.Inputs[chord.Inputs.Length - 1].Hand;
             }
         }
-        sample.Digital = new InputDigitalActionData_t { bActive = active, bState = held, bChanged = held != sample.Held, activeOrigin = origin };
-        sample.Analog = new InputAnalogActionData_t { bActive = active, activeOrigin = origin, x = axis.x, y = axis.y, deltaX = axis.x - sample.Axis.x, deltaY = axis.y - sample.Axis.y };
+        sample.Digital = new VRDigitalState { Active = active, Held = held, Down = held && !sample.Held, Up = !held && sample.Held };
+        sample.Delta = axis - sample.Axis;
         sample.Held = held; sample.Axis = axis;
         return sample;
     }
-    static InputPoseActionData_t Pose(ulong action, ulong source)
+    internal static VRDigitalState ReadDigital(string path, VRInputSource source) => GetSample(path, Hand(source)).Digital;
+    internal static Vector2 ReadAxis(string path, VRInputSource source) => GetSample(path, Hand(source)).Axis;
+    internal static bool IsBound(string path, VRInputSource source)
     {
-        int hand = (int)source;
-        // SteamVR pose actions commonly request unrestricted action data
-        // (ulRestrictToDevice == 0) and select the hand from the action path.
-        // Digital actions happen to carry a hand source, which hid this gap
-        // until the native weapon collider began consuming pose velocity.
-        if ((hand < 1 || hand > 3) && ActionPaths.TryGetValue(action, out var actionPath))
-        {
-            hand = actionPath.EndsWith("/posel", StringComparison.OrdinalIgnoreCase) ? 1 :
-                   actionPath.EndsWith("/poser", StringComparison.OrdinalIgnoreCase) ? 2 :
-                   actionPath.EndsWith("/bodypose", StringComparison.OrdinalIgnoreCase) ? 3 : 0;
-        }
-        var device = hand >= 1 && hand <= 3 ? Device(hand) : null;
+        int hand = Hand(source);
+        if (hand < 0) return false;
+        bool Available(Binding binding) => (hand == 0 || binding.Hand == hand) && Device(binding.Hand) != null && BindingActive(binding);
+        if (Bindings.TryGetValue(path, out var bindings) && bindings.Any(Available)) return true;
+        if (Chords.TryGetValue(path, out var chords) && chords.Any(chord => chord.Inputs.Length > 0 &&
+            (hand == 0 || chord.Inputs.Any(binding => binding.Hand == hand)) && chord.Inputs.All(binding => Device(binding.Hand) != null && BindingActive(binding)))) return true;
+        if (path.EndsWith("/posel", StringComparison.OrdinalIgnoreCase)) return Device(1) != null;
+        if (path.EndsWith("/poser", StringComparison.OrdinalIgnoreCase)) return Device(2) != null;
+        return false;
+    }
+    internal static VRPoseState ReadPose(string path, VRInputSource source)
+    {
+        int hand = Hand(source);
+        if (hand == 0) hand = path.EndsWith("/posel", StringComparison.OrdinalIgnoreCase) ? 1 :
+            path.EndsWith("/poser", StringComparison.OrdinalIgnoreCase) ? 2 : path == "/user/head" ? 3 : 0;
+        var device = Device(hand);
         var position = Control<Vector3Control>(device, "devicePosition")?.ReadValue() ?? Vector3.zero;
-        bool tracked = Control<ButtonControl>(device, "isTracked")?.isPressed ?? false;
-        // Meta XR Simulator publishes a valid pose before it raises the
-        // optional isTracked button.  A non-zero controller pose is still a
-        // real tracked sample; accepting it keeps the SteamVR action's
-        // bPoseIsValid bit aligned with the data we are passing through.
-        bool valid = device != null && (tracked || position.sqrMagnitude > .0001f);
-        if (device != null && Warned.Add("pose-device-" + action))
-            OpenXRPlugin.Log.LogInfo($"OpenXR pose device action={action}, hand={hand}, position={position}, tracked={tracked}, valid={valid}");
-        if (Warned.Add("pose-request-" + action))
-            OpenXRPlugin.Log.LogInfo($"OpenXR pose request action={action}, source={source}, path={(ActionPaths.TryGetValue(action, out var p) ? p : "<unknown>")}, hand={hand}, device={(device == null ? "null" : device.name)}, position={position}, valid={valid}");
         var rotation = Control<QuaternionControl>(device, "deviceRotation")?.ReadValue() ?? Quaternion.identity;
+        var tracking = Control<ButtonControl>(device, "isTracked");
+        var trackingState = Control<IntegerControl>(device, "trackingState");
+        // A lost device may retain its last nonzero position. Only native tracking
+        // state can validate it; a remembered position must never keep a grip alive.
+        bool valid = device != null && (tracking != null ? tracking.isPressed :
+            trackingState != null && (trackingState.ReadValue() & 3) == 3);
         var velocity = Control<Vector3Control>(device, "deviceVelocity")?.ReadValue() ?? Vector3.zero;
-        // The Meta simulator updates the pose location but intentionally leaves
-        // deviceVelocity at zero.  VHVR's native WeaponCollision reads the
-        // SteamVR tracked-hand velocity (rather than differentiating the
-        // rendered mesh), so preserve one velocity source by deriving a
-        // frame-stamped velocity only when the runtime did not provide one.
-        // Unrestricted requests use source=0 for both hands.  Keep history by
-        // resolved hand so the left hand cannot overwrite the right hand's
-        // previous position before velocity is derived.
-        ulong sampleKey = (ulong)Mathf.Max(hand, 0);
-        if (!PoseSamples.TryGetValue(sampleKey, out var previous)) PoseSamples[sampleKey] = previous = new PoseSample();
+        if (!valid) velocity = Vector3.zero;
+        if (!PoseSamples.TryGetValue(hand, out var previous)) PoseSamples[hand] = previous = new PoseSample();
         if (previous.Frame != Time.frameCount)
         {
-            float dt = Mathf.Clamp(Time.unscaledDeltaTime, 1f / 240f, .25f);
-            if (velocity.sqrMagnitude < .0001f && previous.Valid && valid)
-                velocity = (position - previous.Position) / dt;
-            previous.Frame = Time.frameCount;
-            previous.Valid = valid;
-            previous.Position = position;
-            previous.Velocity = velocity;
+            float dt = Mathf.Clamp(Time.unscaledTime - previous.Time, 1f / 240f, .25f);
+            if (velocity.sqrMagnitude < .0001f && previous.Valid && valid) velocity = (position - previous.Position) / dt;
+            previous.Frame = Time.frameCount; previous.Valid = valid; previous.Position = position;
+            previous.Velocity = velocity; previous.Time = Time.unscaledTime;
         }
+        else velocity = previous.Velocity;
+        return new VRPoseState { Position = position, Rotation = rotation, Velocity = velocity,
+            AngularVelocity = valid ? Control<Vector3Control>(device, "deviceAngularVelocity")?.ReadValue() ?? Vector3.zero : Vector3.zero,
+            Valid = valid, Connected = device != null };
+    }
+    internal static VRHandControls ReadHandControls(VRInputSource source)
+    {
+        var device = Device(Hand(source));
+        bool Touch(string name, string alias) => (Control<ButtonControl>(device, name) ?? Control<ButtonControl>(device, alias))?.isPressed ?? false;
+        return new VRHandControls { Grip = Control<AxisControl>(device, "grip")?.ReadValue() ?? 0,
+            Trigger = Control<AxisControl>(device, "trigger")?.ReadValue() ?? 0,
+            PrimaryTouched = Touch("primaryTouched", "primaryTouch"), SecondaryTouched = Touch("secondaryTouched", "secondaryTouch"),
+            ThumbstickTouched = Touch("thumbstickTouched", "primary2DAxisTouch"), TriggerTouched = Touch("triggerTouched", "triggerTouch") };
+    }
+    internal static void ListenDigital(string path, VRInputSource source, bool down, Action<VRInputSource> callback) =>
+        DigitalListeners.Add(new DigitalListener { Path = path, Source = source, Down = down, Callback = callback });
+    internal static void ListenAxis(string path, VRInputSource source, Action<VRInputSource, Vector2, Vector2> callback) =>
+        AxisListeners.Add(new AxisListener { Path = path, Source = source, Callback = callback });
+    internal static void ListenUpdates(Action callback) { if (UpdateListeners.Add(callback)) Updated += callback; }
+    internal static void RemoveUpdateListener(Action callback) { if (UpdateListeners.Remove(callback)) Updated -= callback; }
+    internal static void Haptic(VRInputSource source, float delay, float duration, float amplitude)
+    {
+        var pulse = new Pulse(source, Time.unscaledTime + Mathf.Max(0, delay), Mathf.Clamp(duration, 0, 5), Mathf.Clamp01(amplitude));
+        if (delay > 0) Pulses.Add(pulse); else SendPulse(pulse);
+    }
+    static void SendPulse(Pulse pulse)
+    {
+        if (pulse.Source == VRInputSource.Any)
+        {
+            SendPulse(new Pulse(VRInputSource.LeftHand, pulse.At, pulse.Duration, pulse.Amplitude));
+            SendPulse(new Pulse(VRInputSource.RightHand, pulse.At, pulse.Duration, pulse.Amplitude));
+            return;
+        }
+        int hand = Hand(pulse.Source);
+        if (hand != 1 && hand != 2) return;
+        if (Device(hand) is XRControllerWithRumble device) device.SendImpulse(pulse.Amplitude, pulse.Duration);
         else
         {
-            velocity = previous.Velocity;
+            var native = InputDevices.GetDeviceAtXRNode(hand == 1 ? XRNode.LeftHand : XRNode.RightHand);
+            if (native.TryGetHapticCapabilities(out var caps) && caps.supportsImpulse) native.SendHapticImpulse(0, pulse.Amplitude, pulse.Duration);
         }
-        if (velocity.sqrMagnitude > .0001f && Warned.Add("pose-velocity-" + hand))
-            OpenXRPlugin.Log.LogInfo($"OpenXR pose velocity hand={hand}, velocity={velocity}, frame={Time.frameCount}");
-        var angular = Control<Vector3Control>(device, "deviceAngularVelocity")?.ReadValue() ?? Vector3.zero;
-        var matrix = new SteamVR_Utils.RigidTransform(position, rotation).ToHmdMatrix34();
-        // For unrestricted pose requests the runtime passes source=0 while
-        // the action path identifies the hand.  SteamVR_Action_Pose uses
-        // activeOrigin to look up its source record; returning zero here makes
-        // the pose appear valid to OpenXR but invisible to VHVR's hand and
-        // weapon code.  Publish the resolved hand as the origin.
-        return new InputPoseActionData_t {
-            bActive = valid, activeOrigin = (ulong)Mathf.Max(hand, 0),
-            pose = new TrackedDevicePose_t { bDeviceIsConnected = device != null, bPoseIsValid = valid,
-                eTrackingResult = valid ? ETrackingResult.Running_OK : ETrackingResult.Uninitialized,
-                vVelocity = new HmdVector3_t { v0 = velocity.x, v1 = velocity.y, v2 = -velocity.z },
-                vAngularVelocity = new HmdVector3_t { v0 = -angular.x, v1 = -angular.y, v2 = angular.z },
-                mDeviceToAbsoluteTracking = matrix }
-        };
-    }
-    // Typed hot-path prefixes avoid Harmony's object[] and boxing for every action.
-    static bool DigitalData(ulong __0, ref InputDigitalActionData_t __1, ulong __3, ref EVRInputError __result)
-    { __1 = GetSample(__0, __3).Digital; __result = EVRInputError.None; return false; }
-    static bool AnalogData(ulong __0, ref InputAnalogActionData_t __1, ulong __3, ref EVRInputError __result)
-    { __1 = GetSample(__0, __3).Analog; __result = EVRInputError.None; return false; }
-    static bool NextPoseData(ulong __0, ref InputPoseActionData_t __2, ulong __4, ref EVRInputError __result)
-    { __2 = Pose(__0, __4); __result = EVRInputError.None; return false; }
-    static bool RelativePoseData(ulong __0, ref InputPoseActionData_t __3, ulong __5, ref EVRInputError __result)
-    { __3 = Pose(__0, __5); __result = EVRInputError.None; return false; }
-    static bool OriginData(ulong __0, ref InputOriginInfo_t __1, ref EVRInputError __result)
-    {
-        __1 = new InputOriginInfo_t { devicePath = __0, trackedDeviceIndex = __0 == 1 ? 1u : __0 == 2 ? 2u : __0 == 3 ? 0u : uint.MaxValue };
-        __result = EVRInputError.None; return false;
-    }
-    static bool ActionState(VRActiveActionSet_t[] __0, ref EVRInputError __result)
-    { UpdateActionSets(__0); __result = EVRInputError.None; return false; }
-    static bool Dispatch(MethodBase __originalMethod, object[] __args, ref EVRInputError __result)
-    {
-        __result = EVRInputError.None;
-        switch (__originalMethod.Name)
-        {
-            case "GetActionHandle": case "GetActionSetHandle": case "GetInputSourceHandle": __args[1] = Handle((string)__args[0]); break;
-            case "TriggerHapticVibrationAction":
-                int hand = (int)(ulong)__args[5];
-                var haptic = Device(hand) as XRControllerWithRumble;
-                float amplitude = Mathf.Clamp01((float)__args[4]), duration = Mathf.Clamp((float)__args[2], 0, 5);
-                if (haptic != null) haptic.SendImpulse(amplitude, duration);
-                else if (hand == 1 || hand == 2)
-                {
-                    var nativeDevice = InputDevices.GetDeviceAtXRNode(hand == 1 ? XRNode.LeftHand : XRNode.RightHand);
-                    if (nativeDevice.TryGetHapticCapabilities(out var caps) && caps.supportsImpulse) nativeDevice.SendHapticImpulse(0, amplitude, duration);
-                }
-                break;
-            case "SetActionManifestPath": break;
-            case "GetSkeletalActionData": __args[1] = new InputSkeletalActionData_t(); break;
-            case "GetBoneCount": __args[1] = 0u; break;
-            case "GetSkeletalTrackingLevel": __args[1] = EVRSkeletalTrackingLevel.VRSkeletalTracking_Estimated; break;
-            case "GetOriginLocalizedName": ((System.Text.StringBuilder)__args[1]).Append("OpenXR controller"); break;
-            default:
-                // Unsupported optional SteamVR services never escape to openvr_api.dll.
-                __result = EVRInputError.NoData;
-                if (Warned.Add(__originalMethod.Name)) OpenXRPlugin.Log.LogDebug("OpenXR optional service unavailable: " + __originalMethod.Name);
-                break;
-        }
-        return false;
     }
 }

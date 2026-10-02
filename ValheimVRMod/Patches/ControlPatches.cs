@@ -1026,7 +1026,7 @@ namespace ValheimVRMod.Patches {
             lookDir =
                 Reining.shouldOverrideSpeedOrDirection ?
                 (Vector3)Reining.targetDirection :
-                Valve.VR.InteractionSystem.Player.instance.hmdTransform.forward; // This makes the mounts try to follow the hmd eyedir
+                VRRig.Current.Head.forward; // This makes the mounts try to follow the hmd eyedir
         }
     }
 

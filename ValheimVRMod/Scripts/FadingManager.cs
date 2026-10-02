@@ -1,3 +1,4 @@
+using ValheimVRMod.VRCore.Backends;
 using System;
 using System.Collections;
 using UnityEngine;
@@ -43,7 +44,7 @@ namespace ValheimVRMod.Scripts
                 StopLowHealthPulse();
                 if (!_lastShouldFadeToBlack)
                 {
-                    SteamVR_Fade.Start(Color.black, 0.2f);
+                    VRFade.Start(Color.black, 0.2f);
                     OnFadeToBlack?.Invoke();
                     _lastShouldFadeToBlack = true;
                 }
@@ -52,7 +53,7 @@ namespace ValheimVRMod.Scripts
             {
                 if (_lastShouldFadeToBlack)
                 {
-                    SteamVR_Fade.Start(Color.clear, 0.15f);
+                    VRFade.Start(Color.clear, 0.15f);
                     OnFadeToWorld?.Invoke();
                     _lastShouldFadeToBlack = false;
                 }
@@ -114,7 +115,7 @@ namespace ValheimVRMod.Scripts
             {
                 StopCoroutine(lowHealthPulseCoroutine);
             }
-            SteamVR_Fade.Start(Color.clear, 0.5f);
+            VRFade.Start(Color.clear, 0.5f);
             isLowHealthPulsing = false;
         }
 
@@ -122,9 +123,9 @@ namespace ValheimVRMod.Scripts
         {
             while (true)
             {
-                SteamVR_Fade.Start(new Color(1f, 0f, 0f, lowHealthPulseAlpha), lowHealthPulseInterval);
+                VRFade.Start(new Color(1f, 0f, 0f, lowHealthPulseAlpha), lowHealthPulseInterval);
                 yield return new WaitForSeconds(lowHealthPulseInterval);
-                SteamVR_Fade.Start(new Color(1f, 0f, 0f, 0f), lowHealthPulseInterval);
+                VRFade.Start(new Color(1f, 0f, 0f, 0f), lowHealthPulseInterval);
                 yield return new WaitForSeconds(lowHealthPulseInterval);
             }
         }

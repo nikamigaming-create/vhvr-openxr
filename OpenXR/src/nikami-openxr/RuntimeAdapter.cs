@@ -1,24 +1,20 @@
 using System;
 using System.Collections;
 using System.Reflection;
-using System.Runtime.Serialization;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using UnityEngine;
-using Valve.VR;
-using Valve.VR.InteractionSystem;
+using ValheimVRMod.VRCore.Backends;
+using Hand = ValheimVRMod.VRCore.Backends.VRHand;
 
 namespace Nikami.OpenXR;
 
-// Keep the managed SteamVR interaction objects used by VHVR's shipped prefabs,
-// but never initialize their OpenVR compositor/runtime. Unity OpenXR owns those.
+// Native OpenXR camera/presentation corrections and upstream scene safety guards.
 internal static class RuntimeAdapter
 {
-    static readonly SteamVR ManagedRuntime = (SteamVR)FormatterServices.GetUninitializedObject(typeof(SteamVR));
-    static readonly CVRInput ManagedInput = (CVRInput)FormatterServices.GetUninitializedObject(typeof(CVRInput));
     static Camera worldCamera;
     static Func<Hand> leftHand, rightHand;
     static Func<Component> leftEstimator, rightEstimator;
@@ -72,41 +68,6 @@ internal static class RuntimeAdapter
         OpenXRAmbientOcclusion.Install(h);
         OpenXREquipmentQuality.Install(h);
         OpenXRInputFocus.Install();
-        OpenXRPhysicalHands.Install(h);
-        Hook(h, typeof(SteamVR), "Initialize", nameof(Skip));
-        Hook(h, typeof(SteamVR), "get_instance", nameof(GetRuntime));
-        Hook(h, typeof(SteamVR), "get_hmd_DisplayFrequency", nameof(Frequency));
-        Hook(h, typeof(SteamVR), "SafeDispose", nameof(Skip));
-        Hook(h, typeof(Valve.VR.OpenVR), "get_Input", nameof(GetInput));
-        // VHVR's pose behaviours are also the bridge that copies SteamVR action
-        // poses onto the tracked hands.  Skipping SteamVR_Behaviour or
-        // SteamVR_TrackedObject Update/LateUpdate leaves the hand visually at
-        // its spawn pose and gives WeaponCollision a zero velocity.  Only the
-        // compositor renderer must be suppressed; its lifecycle is the part
-        // that would try to submit through OpenVR.
-        foreach (var type in new[] { typeof(SteamVR_Render) })
-            foreach (var method in new[] { "Awake", "OnEnable", "Start", "Update", "LateUpdate", "FixedUpdate", "OnDisable", "OnDestroy" })
-            {
-                // AccessTools.DeclaredMethod logs a warning when a SteamVR type
-                // has no method with this name.  VHVR 0.10.3 moved several of
-                // these lifecycle methods, so enumerate the methods we can
-                // actually patch instead of asking Harmony to resolve ghosts.
-                var original = type.GetMethods(BindingFlags.Instance | BindingFlags.Static |
-                                               BindingFlags.Public | BindingFlags.NonPublic |
-                                               BindingFlags.DeclaredOnly)
-                    .FirstOrDefault(candidate => candidate.Name == method &&
-                                                  candidate.ReturnType == typeof(void) &&
-                                                  candidate.GetParameters().Length == 0);
-                if (original != null && original.ReturnType == typeof(void)) h.Patch(original, new HarmonyMethod(typeof(RuntimeAdapter), nameof(Skip)));
-            }
-        Hook(h, typeof(Valve.VR.InteractionSystem.Player), "Start", nameof(StartPlayer));
-        // Runtime controller render-model download belongs to OpenVR. VHVR renders
-        // the native character hands/held items; its transforms remain intact.
-        Hook(h, typeof(Hand), "InitController", nameof(Skip));
-        h.Patch(AccessTools.Method(typeof(Hand), "GetTrackedObjectVelocity"),
-            postfix: new HarmonyMethod(typeof(RuntimeAdapter), nameof(TrackedVelocity)));
-        Hook(h, typeof(SteamVR_Input), "UpdateSkeletonActions", nameof(Skip));
-        Hook(h, typeof(SteamVR_Action_Pose), "SetTrackingUniverseOrigin", nameof(SetOrigin));
         // VHVR's render callbacks update gameplay transforms, but Unity invokes
         // them once for every active camera. In multipass those cameras consume
         // the same game-frame pose; repeating the writes for each eye only adds
@@ -185,29 +146,6 @@ internal static class RuntimeAdapter
         }
         h.Patch(AccessTools.Method("ValheimVRMod.Scripts.LocalWeaponWield:OnDestroy"), transpiler: new HarmonyMethod(typeof(RuntimeAdapter), nameof(SafeWeaponCleanup)));
     }
-    static void Hook(Harmony h, Type type, string method, string prefix)
-    {
-        var target = AccessTools.Method(type, method) ?? throw new MissingMethodException(type.FullName, method);
-        h.Patch(target, new HarmonyMethod(typeof(RuntimeAdapter), prefix));
-    }
-    internal static void InitializeManagedActions()
-    {
-        var settings = SteamVR_Settings.instance;
-        AccessTools.Property(typeof(SteamVR), "settings").SetValue(null, settings);
-        SteamVR.initializedState = SteamVR.InitializedStates.InitializeSuccess;
-        settings.autoEnableVR = false;
-        settings.lockPhysicsUpdateRateToRenderFrequency = false;
-        // Create the managed SteamVR event host before VHVR instantiates and
-        // parents its camera rig. Lazy initialization can otherwise find the
-        // rig's SteamVR_Render under the menu camera and mark that entire scene
-        // root DontDestroyOnLoad. MenuScene then survives a fast server join,
-        // retaining a second sun and overwriting EnvMan's sky/fog/wind globals.
-        // The standalone host retains pose/input callbacks without retaining
-        // menu scenery or transferring it into the gameplay scene.
-        SteamVR_Behaviour.Initialize();
-        SteamVR_Input.Initialize();
-    }
-    static bool Skip() => false;
     static bool RenderOncePerFrame(MonoBehaviour __instance)
     {
         if (!__instance) return false;
@@ -350,29 +288,6 @@ internal static class RuntimeAdapter
         if (renderer && renderer.sharedMaterial) owner.Own(renderer.sharedMaterial);
     }
     static bool CreatePanelCameraOnce(Camera ____uiPanelCamera) => !____uiPanelCamera;
-    static void TrackedVelocity(Hand __instance, float timeOffset, ref Vector3 __result)
-    {
-        if (__result.sqrMagnitude > .0001f || __instance == null || timeOffset != 0)
-            return;
-        int hand = __instance.handType == SteamVR_Input_Sources.LeftHand ? 1 :
-                   __instance.handType == SteamVR_Input_Sources.RightHand ? 2 : 0;
-        if (hand == 0)
-            return;
-        var poseAction = hand == 1 ? SteamVR_Actions.valheim_PoseL : SteamVR_Actions.valheim_PoseR;
-        var localVelocity = poseAction?.GetVelocity(hand == 1 ? SteamVR_Input_Sources.LeftHand : SteamVR_Input_Sources.RightHand) ?? Vector3.zero;
-        if (localVelocity.sqrMagnitude < .0001f && !InputAdapter.TryGetVelocity(hand, out localVelocity))
-            return;
-        var origin = Valve.VR.InteractionSystem.Player.instance?.trackingOriginTransform;
-        __result = origin != null ? origin.TransformVector(localVelocity) : localVelocity;
-    }
-    static bool GetRuntime(ref SteamVR __result) { __result = ManagedRuntime; return false; }
-    static bool GetInput(ref CVRInput __result) { __result = ManagedInput; return false; }
-    static bool Frequency(ref float __result) { __result = 90; return false; }
-    static bool SetOrigin(ETrackingUniverseOrigin newOrigin)
-    {
-        AccessTools.Method(typeof(SteamVR_Action_Pose_Base<SteamVR_Action_Pose_Source_Map<SteamVR_Action_Pose_Source>, SteamVR_Action_Pose_Source>), "SetUniverseOrigin").Invoke(null, new object[] { newOrigin });
-        return false;
-    }
     static void EnsureHipRenderer()
     {
         var existing = hipTrackerRenderer != null ? hipTrackerRenderer() : null;
@@ -394,14 +309,6 @@ internal static class RuntimeAdapter
         // Still call the live getters so scene changes and lazy initialization work.
         return leftHand() && rightHand() && leftEstimator() && rightEstimator();
     }
-    static bool StartPlayer(Valve.VR.InteractionSystem.Player __instance, ref IEnumerator __result)
-    {
-        AccessTools.Field(typeof(Valve.VR.InteractionSystem.Player), "_instance").SetValue(null, __instance);
-        AccessTools.Method(typeof(Valve.VR.InteractionSystem.Player), "ActivateRig").Invoke(__instance, new object[] { __instance.rigSteamVR });
-        __result = Empty();
-        return false;
-    }
-    static IEnumerator Empty() { yield break; }
     static IEnumerable<CodeInstruction> SafeWeaponCleanup(IEnumerable<CodeInstruction> source)
     {
         foreach (var instruction in source)

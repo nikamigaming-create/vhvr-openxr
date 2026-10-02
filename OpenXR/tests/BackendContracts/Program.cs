@@ -48,6 +48,9 @@ static class Program
         Throws<ArgumentException>(() => VRBackendHost.Choose("broken", Array.Empty<string>()), "reject unknown config");
         foreach (var method in typeof(IVRInputBackend).GetMethods())
             Require(!method.ToString()!.Contains("Valve."), "neutral input method: " + method.Name);
+        foreach (var method in typeof(IVRRigBackend).GetMethods())
+            Require(!method.ToString()!.Contains("Valve."), "neutral rig method: " + method.Name);
+        Require(!VRGameplay.Options.Any, "all added gameplay disabled by default");
         foreach (var source in Enum.GetValues<VRInputSource>())
             Require(Enum.GetName(typeof(Valve.VR.SteamVR_Input_Sources), (int)source) == source.ToString(), "SDK boundary source mapping " + source);
 
@@ -110,6 +113,7 @@ static class Program
     {
         public VRBackendKind Kind { get; }
         public IVRInputBackend Input => this;
+        public IVRRigBackend Rig => null!;
         public FakeBackend(VRBackendKind kind) { Kind = kind; }
         public VRDigitalState Digital;
         public Vector2 Axis;

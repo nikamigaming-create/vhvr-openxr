@@ -5,8 +5,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using UnityEngine;
-using Valve.VR;
-using Valve.VR.InteractionSystem;
+using Hand = ValheimVRMod.VRCore.Backends.VRHand;
 
 namespace Nikami.OpenXR;
 
@@ -88,8 +87,7 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
         // UpdateTransform completes before onTransformUpdated and before the
         // existing hand/weapon/IK consumers. The action pose and its velocity
         // remain the untouched tracked input used by native swing detection.
-        harmony.Patch(AccessTools.Method(typeof(SteamVR_Behaviour_Pose), "UpdateTransform"),
-            postfix: new HarmonyMethod(typeof(OpenXRPhysicalHands), nameof(ConstrainPose)));
+        VRPoseDriver.PosePublished += ConstrainPose;
         harmony.Patch(AccessTools.Method(typeof(ItemDrop), "CanPickup"),
             postfix: new HarmonyMethod(typeof(OpenXRPhysicalHands), nameof(ProtectHeldItem)));
         harmony.Patch(AccessTools.Method(typeof(ItemDrop), "AutoStackItems"),
@@ -140,12 +138,12 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
     bool SharedGrip => twoHanded() || RightItem(player)?.m_shared.m_itemType == ItemDrop.ItemData.ItemType.Bow
         || LeftItem(player)?.m_shared.m_itemType == ItemDrop.ItemData.ItemType.Bow;
 
-    static void ConstrainPose(SteamVR_Behaviour_Pose __instance)
+    static void ConstrainPose(VRPoseDriver __instance)
     {
         var current = Current;
         if (!current) return;
-        var state = (VRInputSource)(int)__instance.inputSource == VRInputSource.LeftHand ? current.Left :
-            (VRInputSource)(int)__instance.inputSource == VRInputSource.RightHand ? current.Right : null;
+        var state = __instance.inputSource == VRInputSource.LeftHand ? current.Left :
+            __instance.inputSource == VRInputSource.RightHand ? current.Right : null;
         if (state == null) return;
         state.Hand = state == current.Left ? leftHand() : rightHand();
         if (!state.Hand || state.Hand.transform != __instance.transform) return;
@@ -179,7 +177,10 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
         state.Solver.IgnoredBody = state.Grab ? state.Grab.Body : state.CreatureGrip ? state.CreatureGrip.Body : null;
         long begin = System.Diagnostics.Stopwatch.GetTimestamp();
         // Two hands on one weapon must not repel each other at the grip.
-        var solved = state.Solver.FollowTracked(tracked, peer.Active && !current.SharedGrip ? peer.Solver : null, Time.unscaledTime, reset);
+        var solved = tracked;
+        if (VRGameplay.Options.PhysicalContact)
+            solved = state.Solver.FollowTracked(tracked, peer.Active && !current.SharedGrip ? peer.Solver : null, Time.unscaledTime, reset);
+        else { state.Solver.Pose = tracked; state.Solver.Valid = true; }
         // Check the actual held anchor before it can replace the tracked hand
         // pose. FixedUpdate and avatar reach checks alone can leave a hand
         // trailing a wedged item while the player is walking away.
@@ -273,7 +274,7 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
     static Vector3 PointVelocity(HandState state, Vector3 point)
     {
         if (!state.Active || !state.Hand) return Vector3.zero;
-        var pose = state.Hand.trackedObject;
+        var pose = state.Hand.Pose;
         var velocity = pose ? pose.GetVelocity() : Vector3.zero;
         if (pose && pose.origin) velocity = pose.origin.TransformDirection(velocity);
         return velocity + Vector3.Cross(state.AngularVelocity, point - state.Tracked.position);
@@ -296,7 +297,7 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
         UpdateGrip(Left); UpdateGrip(Right);
     }
     void OnEnable() => StartCoroutine(MonitorReach());
-    void LateUpdate() => HandRig?.UpdateFingers();
+    void LateUpdate() { if (VRGameplay.Options.FingerArticulation) HandRig?.UpdateFingers(); }
     IEnumerator MonitorReach()
     {
         while (isActiveAndEnabled)
@@ -384,8 +385,8 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
                     var body = actor ? actor.GetComponent<Rigidbody>() : collider.attachedRigidbody;
                     if (!body || body.isKinematic) continue;
                     if (collider is MeshCollider mesh && !mesh.convex) continue;
-                    if (item && (item.IsPiece() || item.InTar() || item.GetComponent<OpenXRPhysicalGrab>())) continue;
-                    if (!item && (!actor || actor.IsPlayer() || actor.IsDead() || actor.GetComponent<OpenXRCreatureGrip>())) continue;
+                    if (item && (!VRGameplay.Options.PhysicalGrabbing || item.IsPiece() || item.InTar() || item.GetComponent<OpenXRPhysicalGrab>())) continue;
+                    if (!item && (!VRGameplay.Options.CreatureGrabbing || !actor || actor.IsPlayer() || actor.IsDead() || actor.GetComponent<OpenXRCreatureGrip>())) continue;
                     var point = collider.ClosestPoint(palm);
                     float distance = Vector3.Distance(palm, point);
                     if (distance > nearest) continue;

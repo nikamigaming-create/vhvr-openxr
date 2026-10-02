@@ -170,7 +170,7 @@ namespace ValheimVRMod.Patches
 
 
             private static void UpdateHoverObject(
-                Player instance, ref GameObject hoverReference, ref Character hoverCreature, int mask, Valve.VR.Extras.SteamVR_LaserPointer pointer, ref Vector3 hitPosition)
+                Player instance, ref GameObject hoverReference, ref Character hoverCreature, int mask, VRLaserPointer pointer, ref Vector3 hitPosition)
             {
                 if (pointer == null)
                 {

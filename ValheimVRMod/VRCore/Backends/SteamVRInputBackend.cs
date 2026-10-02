@@ -79,6 +79,7 @@ namespace ValheimVRMod.VRCore.Backends
     {
         public VRBackendKind Kind { get { return VRBackendKind.OpenVR; } }
         public IVRInputBackend Input { get; } = new SteamVRInputBackend();
+        public IVRRigBackend Rig { get; } = new OpenVRRigBackend();
         public bool Initialize() { return OpenVRRuntime.InitializeVR(); }
         public bool Start() { return OpenVRRuntime.StartVR(); }
         public void Stop()

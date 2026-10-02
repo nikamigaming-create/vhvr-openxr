@@ -6,6 +6,7 @@ using UnityEngine.Events;
 using UnityEngine.UI;
 using ValheimVRMod.Patches;
 using ValheimVRMod.Utilities;
+using ValheimVRMod.VRCore.Backends;
 using Valve.VR;
 using TMPro;
 
@@ -16,6 +17,13 @@ namespace ValheimVRMod.Patches {
 
         public static void Postfix(TextInput __instance) {
             if (VHVRConfig.UseVrControls()) {
+                if (VRBackendHost.Active.Kind == VRBackendKind.OpenXR)
+                {
+                    // OpenXR has no SteamVR overlay keyboard. Keep the native
+                    // text panel visible and accept the player's physical keyboard.
+                    __instance.m_panel.gameObject.transform.localScale = Vector3.one;
+                    return;
+                }
                 bool isChatInput = __instance.m_topic.text == "ChatText";
 
                 // TextInput.m_instance.m_panel is a singleton GameObject reused for chat, sign,
@@ -165,6 +173,7 @@ namespace ValheimVRMod.Patches {
         public static bool triggerReturn;
 
         public static void start(InputField inputField, TMP_InputField inputFieldTmp, GuiInputField inputFieldGui, bool returnOnClose = false, UnityAction closedAction = null, bool chatInput = false) {
+            if (VRBackendHost.Active.Kind != VRBackendKind.OpenVR) return;
             if (_keyboardOpen) {
                 return;
             }

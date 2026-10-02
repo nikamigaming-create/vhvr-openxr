@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using Valve.VR;
+using ValheimVRMod.VRCore.Backends;
 
 /**
  * Manages assets required for mod
@@ -80,13 +81,13 @@ namespace ValheimVRMod.Utilities
         public static bool LoadSteamVRShaders()
         {
             LogDebug("Loading steamvr_shaders");
-            return ShaderLoader.Initialize(Path.Combine(Application.streamingAssetsPath, STEAM_VR_SHADERS));
+            return VRShaders.Initialize(Path.Combine(Application.streamingAssetsPath, STEAM_VR_SHADERS));
         }
 
         public static bool LoadAmplifyShaders()
         {
             LogDebug("Loading Amplify Occlusion shaders");
-            return ShaderLoader.Initialize(Path.Combine(Application.streamingAssetsPath, AMPLIFY_SHADERS));
+            return VRShaders.Initialize(Path.Combine(Application.streamingAssetsPath, AMPLIFY_SHADERS));
         }
 
         /**

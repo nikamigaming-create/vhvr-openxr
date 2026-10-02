@@ -1,7 +1,8 @@
+using ValheimVRMod.VRCore.Backends;
 using UnityEngine;
 using ValheimVRMod.Utilities;
 using ValheimVRMod.VRCore;
-using Valve.VR.InteractionSystem;
+using Hand = ValheimVRMod.VRCore.Backends.VRHand;
 
 namespace ValheimVRMod.Scripts {
     public class HandGesture : MonoBehaviour {
@@ -90,6 +91,8 @@ namespace ValheimVRMod.Scripts {
         }
 
         private void Update() {
+            // Native OpenXR has no Valve render-model skeleton to copy.
+            if (VRBackendHost.Active.Kind == VRBackendKind.OpenXR) return;
 
             if (!areFingersFree() || Game.IsPaused() || VRPlayer.ShouldPauseMovement) {
                 return;

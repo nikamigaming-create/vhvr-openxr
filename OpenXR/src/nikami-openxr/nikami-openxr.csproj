@@ -10,7 +10,6 @@
     <Compile Include="../shared-gameplay/*.cs" />
     <Using Include="UnityEngine.Object" Alias="Object" />
     <Reference Include="$(ValheimDir)/Valheim_Data/Managed/Unity*.dll" Private="false" />
-    <Reference Include="$(SteamVRManagedDir)/SteamVR*.dll" Private="false" />
     <Reference Include="$(SteamVRManagedDir)/ValheimVRMod.dll" Private="false" />
     <Reference Include="$(ValheimDir)/Valheim_Data/Managed/Valve.Newtonsoft.Json.dll" Private="false" />
     <Reference Include="$(ValheimDir)/Valheim_Data/Managed/assembly_valheim.dll" Private="false" />

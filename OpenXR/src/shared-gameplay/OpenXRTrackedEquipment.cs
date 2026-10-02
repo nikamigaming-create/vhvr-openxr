@@ -2,7 +2,6 @@ using ValheimVRMod.VRCore.Backends;
 using System;
 using HarmonyLib;
 using UnityEngine;
-using Valve.VR;
 
 namespace Nikami.OpenXR;
 
@@ -33,15 +32,15 @@ internal sealed class OpenXRTrackedEquipment : MonoBehaviour
             if (parent.name == "RightHand_Attach") { source = VRInputSource.RightHand; break; }
         }
         // Lanterns are parented directly to a tracked controller by VHVR.
-        var physical = OpenXRPhysicalHands.Current;
-        if (physical && physical.Left.Hand && joint == physical.Left.Hand.transform) source = VRInputSource.LeftHand;
-        if (physical && physical.Right.Hand && joint == physical.Right.Hand.transform) source = VRInputSource.RightHand;
+        var rig = VRRig.Current;
+        if (rig && rig.Left && joint == rig.Left.transform) source = VRInputSource.LeftHand;
+        if (rig && rig.Right && joint == rig.Right.transform) source = VRInputSource.RightHand;
         if (paired) source = VRInputSource.Any;
         if (source == VRInputSource.Any && !paired) return;
         var guard = item.GetComponent<OpenXRTrackedEquipment>() ?? item.AddComponent<OpenXRTrackedEquipment>();
         guard.SetSuppressed(false);
         guard.hand = source;
-        OpenXRPhysicalEquipment.Attach(item, source, equipment);
+        if (VRGameplay.Options.PhysicalContact) OpenXRPhysicalEquipment.Attach(item, source, equipment);
         guard.renderers = item.GetComponentsInChildren<Renderer>(true);
         guard.previous = new bool[guard.renderers.Length];
         guard.LateUpdate();

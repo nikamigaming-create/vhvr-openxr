@@ -1,8 +1,8 @@
+using ValheimVRMod.VRCore.Backends;
 using UnityEngine;
 using UnityEngine.UI;
 using ValheimVRMod.Utilities;
 using ValheimVRMod.VRCore.UI.HudElements;
-using Valve.VR.InteractionSystem;
 using System.Collections.Generic;
 using static ValheimVRMod.Utilities.LogUtils;
 
@@ -174,10 +174,10 @@ namespace ValheimVRMod.VRCore.UI
 
         private void revertToLegacyHud()
         {
-            VRHudElements.ForEach(x => {
+            foreach (var x in VRHudElements) {
                 x.Reset();
                 hudElementToPositionMap[x] = LEGACY;
-            });
+            }
             if (leftHudCanvasParent)
             {
                 leftHudCanvasParent.SetActive(false);
@@ -211,9 +211,9 @@ namespace ValheimVRMod.VRCore.UI
         }
         public void resetHUDDeath()
         {
-            VRHudElements.ForEach(x => {
+            foreach (var x in VRHudElements) {
                 placePanelToHud(LEGACY, x);
-            });
+            }
             isDead = true;
         }
 
@@ -229,7 +229,7 @@ namespace ValheimVRMod.VRCore.UI
                 return;
             }
 
-            VRHudElements.ForEach(x => placePanelToHud(x.Placement, x));
+            foreach (var x in VRHudElements) placePanelToHud(x.Placement, x);
 
             setCameraHudPosition();
             setCameraHud2Position();

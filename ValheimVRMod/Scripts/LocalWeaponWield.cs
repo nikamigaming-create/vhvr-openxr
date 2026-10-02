@@ -6,7 +6,7 @@ using ValheimVRMod.Utilities;
 using ValheimVRMod.VRCore;
 using ValheimVRMod.VRCore.UI;
 using Valve.VR;
-using Valve.VR.InteractionSystem;
+using Hand = ValheimVRMod.VRCore.Backends.VRHand;
 
 namespace ValheimVRMod.Scripts
 {

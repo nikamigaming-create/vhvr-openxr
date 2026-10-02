@@ -46,6 +46,7 @@ namespace ValheimVRMod.VRCore.Backends
     {
         VRBackendKind Kind { get; }
         IVRInputBackend Input { get; }
+        IVRRigBackend Rig { get; }
         bool Initialize();
         bool Start();
         void Stop();

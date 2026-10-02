@@ -3,7 +3,6 @@ using System;
 using System.Collections.Generic;
 using HarmonyLib;
 using UnityEngine;
-using Valve.VR;
 
 namespace Nikami.OpenXR;
 
@@ -47,7 +46,7 @@ internal sealed class OpenXRHandRig
         // The OpenVR render-model skeleton is intentionally absent. In
         // addition to doing nothing for fingers, the old Update restores the
         // previous render's wrist rotation before this frame's arm solve.
-        return !hands || hands.HandRig?.Ready != true ||
+        return !VRGameplay.Options.FingerArticulation || !hands || hands.HandRig?.Ready != true ||
             (__instance != hands.Left.Gesture && __instance != hands.Right.Gesture);
     }
     static void BeforeArmSolve(object __instance)

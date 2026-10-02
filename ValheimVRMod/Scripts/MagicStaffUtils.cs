@@ -12,7 +12,7 @@ namespace ValheimVRMod.Scripts
     // All staves are main hand weapons, so a staff is always held in the main weapon hand.
     public static class MagicStaffUtils
     {
-        public static SteamVR_LaserPointer WeaponHandPointer
+        public static VRLaserPointer WeaponHandPointer
         {
             get { return VRPlayer.isRightHandMainWeaponHand ? VRPlayer.rightPointer : VRPlayer.leftPointer; }
         }
@@ -93,7 +93,7 @@ namespace ValheimVRMod.Scripts
         }
 
         // TODO: Consider moving this to WeaponUtils since its logic is not specific to magic weapons.
-        public static Vector3 GetProjectileSpawnPoint(Attack attack, Vector3 offsetDirection, SteamVR_LaserPointer weaponHandPointer)
+        public static Vector3 GetProjectileSpawnPoint(Attack attack, Vector3 offsetDirection, VRLaserPointer weaponHandPointer)
         {
             var offsetAmount =
                 (new Vector3(attack.m_attackOffset, attack.m_attackRange, attack.m_attackHeight)).magnitude;

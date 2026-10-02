@@ -3,7 +3,7 @@ using UnityEngine;
 using ValheimVRMod.Utilities;
 using ValheimVRMod.VRCore;
 using Valve.VR;
-using Valve.VR.InteractionSystem;
+using Hand = ValheimVRMod.VRCore.Backends.VRHand;
 
 namespace ValheimVRMod.Scripts
 {

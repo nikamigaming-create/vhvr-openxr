@@ -6,8 +6,8 @@ using ValheimVRMod.Patches;
 using ValheimVRMod.Utilities;
 using ValheimVRMod.Scripts;
 using Valve.VR;
-using Valve.VR.Extras;
-using Valve.VR.InteractionSystem;
+
+using Hand = ValheimVRMod.VRCore.Backends.VRHand;
 using System.Collections.Generic;
 
 using static ValheimVRMod.Utilities.LogUtils;
@@ -146,8 +146,8 @@ namespace ValheimVRMod.VRCore.UI
         private RenderTexture _guiTexture;
         private RenderTexture _overlayTexture;
 
-        private SteamVR_LaserPointer _leftPointer;
-        private SteamVR_LaserPointer _rightPointer;
+        private VRLaserPointer _leftPointer;
+        private VRLaserPointer _rightPointer;
 
         private VRGUI_InputModule _inputModule;
         // How far the laser pointer may drift on the panel while the trigger is held before a click becomes a drag.
@@ -1055,7 +1055,7 @@ namespace ValheimVRMod.VRCore.UI
 
         // The laser beams need the same treatment as the panel: they are only a couple of millimeters thick and end
         // on the panel, so a beam drawn at its world space pose visibly shakes against it.
-        private void placeLaserProxy(int index, SteamVR_LaserPointer laser, Transform rig)
+        private void placeLaserProxy(int index, VRLaserPointer laser, Transform rig)
         {
             isLaserProxyShown[index] = false;
             if (laser == null || laser.pointer == null || !laser.pointer.activeInHierarchy)
@@ -1084,7 +1084,7 @@ namespace ValheimVRMod.VRCore.UI
         // The laser pointer ray in the local space of the panel held in the hand, composed from the local poses of
         // the pointer and the hand in the rig, rather than from their world space poses. False unless the panel is
         // held in the hand while it is being drawn at the origin.
-        private bool tryGetPreciseRayInHeldPanel(SteamVR_LaserPointer laser, out Vector3 localStart, out Vector3 localDirection)
+        private bool tryGetPreciseRayInHeldPanel(VRLaserPointer laser, out Vector3 localStart, out Vector3 localDirection)
         {
             localStart = Vector3.zero;
             localDirection = Vector3.forward;
@@ -1251,7 +1251,7 @@ namespace ValheimVRMod.VRCore.UI
             hideLaser(VRPlayer.rightPointer);
         }
 
-        private void hideLaser(SteamVR_LaserPointer laser)
+        private void hideLaser(VRLaserPointer laser)
         {
             if (laser == null || laser.pointer == null)
             {
@@ -1498,7 +1498,7 @@ namespace ValheimVRMod.VRCore.UI
 
         private Vector3 getTargetGuiDirection()
         {
-            var hmd = Valve.VR.InteractionSystem.Player.instance?.hmdTransform;
+            var hmd = VRRig.Current?.Head;
             if (Player.m_localPlayer == null || hmd == null || USING_OVERLAY)
             {
                 return Vector3.forward;

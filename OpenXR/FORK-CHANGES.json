@@ -1,209 +1,261 @@
 {
-  "upstreamCommit": "d3739391ac419c05d71563cb736aabad9cd2e0b3",
+  "upstreamCommit": "c267f9d75dad21f1eac5c372d48c5a6f38003faa",
   "changes": [
     {
       "path": "ValheimVRMod/Patches/ControlPatches.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
+    },
+    {
+      "path": "ValheimVRMod/Patches/EyeRotationPatch.cs",
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Patches/HandBasedInteractionPatches.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
+    },
+    {
+      "path": "ValheimVRMod/Patches/PostProcessingPatches.cs",
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Patches/ShieldPatches.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
+    },
+    {
+      "path": "ValheimVRMod/Patches/TextInputPatches.cs",
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/Block/Block.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/Block/ShieldBlock.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/Block/WeaponBlock.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/BowLocalManager.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/BuildingManager.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/ButtonSecondaryAttackManager.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/CrossbowManager.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/CrossbowMorphManager.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/DrawbridgeCounterweightGrab.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
+    },
+    {
+      "path": "ValheimVRMod/Scripts/FadingManager.cs",
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/FishingManager.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/FistCollision.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/FootCollision.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/GesturedLocomotionManager.cs",
-      "reason": "Preserve startup null guard and route gesture input through the backend-neutral contract."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
+    },
+    {
+      "path": "ValheimVRMod/Scripts/HandGesture.cs",
+      "reason": "Read the neutral hand socket; retain upstream render-model finger copying only for OpenVR; optional enhanced articulation is separate."
     },
     {
       "path": "ValheimVRMod/Scripts/InterhandItemTransfer.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/LeftHandQuickMenu.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/LocalWeaponWield.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/MagicStaffUtils.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/OrbManager.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/QuickAbstract.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/Reining.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/RightHandQuickMenu.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/ShipSteering.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/SummonerManager.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
-    },
-    {
-      "path": "ValheimVRMod/Scripts/SwingableStaffManager.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/SwingLaunchManager.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
+    },
+    {
+      "path": "ValheimVRMod/Scripts/SwingableStaffManager.cs",
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/ThrowableManager.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/TwoHandedGeometry.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Scripts/WeaponCollision.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Utilities/MountedAttackUtils.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
+    },
+    {
+      "path": "ValheimVRMod/Utilities/PhysicsEstimator.cs",
+      "reason": "Use neutral tracked-hand velocities without depending on the Valve hand class."
     },
     {
       "path": "ValheimVRMod/Utilities/Pose.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Utilities/SettingCallback.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/Utilities/ThirdPersonCameraUpdater.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
+    },
+    {
+      "path": "ValheimVRMod/Utilities/VRAssetManager.cs",
+      "reason": "Load shared shader resources through the selected provider, without initializing Valve shader state under OpenXR."
     },
     {
       "path": "ValheimVRMod/Utilities/WeaponUtils.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/IVRBackend.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Define SDK-free input, lifecycle and rig-provider contracts and a startup-locked runtime host."
+    },
+    {
+      "path": "ValheimVRMod/VRCore/Backends/OpenVRRigBackend.cs",
+      "reason": "Keep authored Valve player/pose/skeleton integration inside the original OpenVR provider."
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/OpenVRRuntime.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Preserve upstream OpenVR initialization and mirror behavior in the runtime-specific implementation."
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/SteamVRInputBackend.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Original OpenVR SDK adapter and lifecycle; no longer inherited by OpenXR input."
+    },
+    {
+      "path": "ValheimVRMod/VRCore/Backends/VRFade.cs",
+      "reason": "Shared Unity camera fade without Valve compositor or managed event dispatch."
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/VRInput.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/VRInputActions.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
+    },
+    {
+      "path": "ValheimVRMod/VRCore/Backends/VRLaserPointer.cs",
+      "reason": "Preserve upstream pointer behavior using the neutral input and pose contracts; retain upstream attribution."
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/VRLog.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/VRRecenter.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
+    },
+    {
+      "path": "ValheimVRMod/VRCore/Backends/VRRig.cs",
+      "reason": "Shared hand/head/pose publication and independent, disabled-by-default gameplay enhancement options."
+    },
+    {
+      "path": "ValheimVRMod/VRCore/Backends/VRShaders.cs",
+      "reason": "Load native shared shader assets directly for OpenXR; original Valve shader loading stays on OpenVR."
     },
     {
       "path": "ValheimVRMod/VRCore/UI/ConfigSettings.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/VRCore/UI/LaserPointerChords.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/VRCore/UI/MissingBindingsPrompt.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
-    },
-    {
-      "path": "ValheimVRMod/VRCore/UI/VoiceChat.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/VRCore/UI/VRControls.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/VRCore/UI/VRGUI.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
+    },
+    {
+      "path": "ValheimVRMod/VRCore/UI/VRHud.cs",
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
+    },
+    {
+      "path": "ValheimVRMod/VRCore/UI/VoiceChat.cs",
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/VRCore/VRManager.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
       "path": "ValheimVRMod/VRCore/VRPlayer.cs",
-      "reason": "Separate shared gameplay input/runtime from backend SDK implementations; preserve upstream behavior."
+      "reason": "Instantiate the selected rig provider; use neutral hand, head, pointer and fade values; keep body tracking on its original OpenVR provider."
     }
   ]
 }

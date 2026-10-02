@@ -5,7 +5,7 @@ using ValheimVRMod.VRCore;
 using ValheimVRMod.VRCore.UI;
 using Valve.VR;
 using Valve.VR.Extras;
-using Valve.VR.InteractionSystem;
+using Hand = ValheimVRMod.VRCore.Backends.VRHand;
 
 namespace ValheimVRMod.Scripts
 {
@@ -33,7 +33,7 @@ namespace ValheimVRMod.Scripts
 
         private bool IsItemInRightHand { get { return isHeldInMainHand == VRPlayer.isRightHandMainWeaponHand; } }
 
-        private SteamVR_LaserPointer ItemHandPointer
+        private VRLaserPointer ItemHandPointer
         {
             get { return IsItemInRightHand ? VRPlayer.rightPointer : VRPlayer.leftPointer; }
         }

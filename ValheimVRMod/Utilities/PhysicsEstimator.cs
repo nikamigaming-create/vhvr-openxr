@@ -1,6 +1,7 @@
+using ValheimVRMod.VRCore.Backends;
 using System.Collections.Generic;
 using UnityEngine;
-using Valve.VR.InteractionSystem;
+using Hand = ValheimVRMod.VRCore.Backends.VRHand;
 
 namespace ValheimVRMod.Utilities
 {
