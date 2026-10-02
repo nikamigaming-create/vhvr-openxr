@@ -11,12 +11,32 @@ namespace Nikami.OpenXR;
 [DefaultExecutionOrder(31000)]
 internal sealed class OpenXRTrackedEquipment : MonoBehaviour
 {
+    // Baseline visibility has no dependency on optional contact/force classes.
+    internal static event Action<GameObject, VRInputSource, VisEquipment> Attached;
+    static bool installed;
     static readonly Func<bool> UseVrControls = AccessTools.MethodDelegate<Func<bool>>(
         AccessTools.Method("ValheimVRMod.Utilities.VHVRConfig:UseVrControls"));
     Renderer[] renderers;
     bool[] previous;
     VRInputSource hand;
     bool hidden;
+
+    internal static void Install(Harmony harmony)
+    {
+        if (installed) return;
+        harmony.Patch(AccessTools.Method(typeof(VisEquipment), "AttachItem"),
+            postfix: new HarmonyMethod(typeof(OpenXRTrackedEquipment), nameof(AttachedItem)));
+        installed = true;
+    }
+
+    static void AttachedItem(VisEquipment __instance, GameObject __result, int itemHash,
+        Transform joint, bool enableEquipEffects, bool backAttach)
+    {
+        if (!VRBackendHost.IsReady || !__result || !enableEquipEffects || backAttach) return;
+        var player = __instance.GetComponentInParent<Player>();
+        if (!player || player != Player.m_localPlayer) return;
+        Attach(__result, __instance, itemHash, joint);
+    }
 
     internal static void Attach(GameObject item, VisEquipment equipment, int itemHash, Transform joint)
     {
@@ -40,7 +60,7 @@ internal sealed class OpenXRTrackedEquipment : MonoBehaviour
         var guard = item.GetComponent<OpenXRTrackedEquipment>() ?? item.AddComponent<OpenXRTrackedEquipment>();
         guard.SetSuppressed(false);
         guard.hand = source;
-        if (VRGameplay.Options.PhysicalContact) OpenXRPhysicalEquipment.Attach(item, source, equipment);
+        Attached?.Invoke(item, source, equipment);
         guard.renderers = item.GetComponentsInChildren<Renderer>(true);
         guard.previous = new bool[guard.renderers.Length];
         guard.LateUpdate();

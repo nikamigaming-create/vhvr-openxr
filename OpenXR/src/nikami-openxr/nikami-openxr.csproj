@@ -4,13 +4,15 @@
     <AssemblyName>Nikami.OpenXR</AssemblyName>
     <LangVersion>latest</LangVersion>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <SteamVRManagedDir Condition="'$(SteamVRManagedDir)' == ''">$(ValheimDir)/Valheim_Data/Managed</SteamVRManagedDir>
+    <!-- Preserve older build invocations while naming the gameplay reference accurately. -->
+    <GameplayManagedDir Condition="'$(GameplayManagedDir)' == '' and '$(SteamVRManagedDir)' != ''">$(SteamVRManagedDir)</GameplayManagedDir>
+    <GameplayManagedDir Condition="'$(GameplayManagedDir)' == ''">$(ValheimDir)/Valheim_Data/Managed</GameplayManagedDir>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../shared-gameplay/*.cs" />
     <Using Include="UnityEngine.Object" Alias="Object" />
     <Reference Include="$(ValheimDir)/Valheim_Data/Managed/Unity*.dll" Private="false" />
-    <Reference Include="$(SteamVRManagedDir)/ValheimVRMod.dll" Private="false" />
+    <Reference Include="$(GameplayManagedDir)/ValheimVRMod.dll" Private="false" />
     <Reference Include="$(ValheimDir)/Valheim_Data/Managed/Valve.Newtonsoft.Json.dll" Private="false" />
     <Reference Include="$(ValheimDir)/Valheim_Data/Managed/assembly_valheim.dll" Private="false" />
     <Reference Include="$(ValheimDir)/Valheim_Data/Managed/gui_framework.dll" Private="false" />

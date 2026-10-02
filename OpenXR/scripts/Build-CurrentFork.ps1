@@ -91,7 +91,7 @@ New-Item -ItemType Directory -Path $managed -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $openxrRoot 'tools/SteamVR.Runtime/bin/Release/net472/SteamVR.dll') -Destination $managed -Force
 Copy-Item -LiteralPath (Join-Path $openxrRoot 'tools/SteamVR.Actions/bin/Release/net472/SteamVR_Actions.dll') -Destination $managed -Force
 Copy-Item -LiteralPath (Join-Path $openxrRoot 'tools/VHVR.Gameplay/bin/Release/net472/ValheimVRMod.dll') -Destination $managed -Force
-& dotnet build (Join-Path $openxrRoot 'src/nikami-openxr/nikami-openxr.csproj') -c Release "-p:ValheimDir=$ValheimDir" "-p:SteamVRManagedDir=$managed" "-p:OpenXRPackage=$OpenXRPackage" -p:ImportDirectoryBuildTargets=false --nologo -v:q -clp:ErrorsOnly
+& dotnet build (Join-Path $openxrRoot 'src/nikami-openxr/nikami-openxr.csproj') -c Release "-p:ValheimDir=$ValheimDir" "-p:GameplayManagedDir=$managed" "-p:OpenXRPackage=$OpenXRPackage" -p:ImportDirectoryBuildTargets=false --nologo -v:q -clp:ErrorsOnly
 if ($LASTEXITCODE) { throw 'Current XR companion build failed.' }
 CopyPayload (Join-Path $openxrRoot 'tools/VHVR.Gameplay/bin/Release/net472/ValheimVRMod.dll') 'BepInEx/plugins/ValheimVRMod.dll'
 CopyPayload (Join-Path $managed 'SteamVR.dll') 'Valheim_Data/Managed/SteamVR.dll'
@@ -112,4 +112,10 @@ Copy-Item -LiteralPath (Join-Path $openxrRoot 'SOURCE-PROVENANCE.json') -Destina
 $files = foreach ($relative in $manifestFiles.Keys) { [pscustomobject]@{path=$relative;sha256=(Get-FileHash -LiteralPath $manifestFiles[$relative]).Hash} }
 $manifestJson = [ordered]@{releaseTag=('openxr-v' + $ReleaseVersion);adapterVersion=$ReleaseVersion;backends=@('openxr','openvr');defaultBackend='openxr';unityOpenXR='1.16.1';testedValheim='1.0.16';upstreamCommit=$sourceCommit;upstreamChannel='master';baseDependencyRelease='v0.10.5';sourceManifestSha256=(Get-FileHash -LiteralPath (Join-Path $openxrRoot 'SOURCE-PROVENANCE.json')).Hash;files=@($files)} | ConvertTo-Json -Depth 6
 [IO.File]::WriteAllText((Join-Path $Destination 'openxr-manifest.json'), ($manifestJson.Replace("`r`n", "`n") + "`n"), (New-Object Text.UTF8Encoding($false)))
+$licenses = Join-Path $Destination 'openxr-licenses'
+New-Item -ItemType Directory -Path $licenses -Force | Out-Null
+foreach ($name in @('LICENSE.md', 'Third Party Notices.md')) {
+    $notice = Join-Path $OpenXRPackage $name
+    if (Test-Path -LiteralPath $notice) { Copy-Item -LiteralPath $notice -Destination $licenses -Force }
+}
 Write-Output ('Built current fork payload: ' + $files.Count + ' files, upstream ' + $sourceCommit)

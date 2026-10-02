@@ -64,6 +64,7 @@ internal static class RuntimeAdapter
 
     internal static void Install(Harmony h)
     {
+        OpenXRTrackedEquipment.Install(h);
         OpenXRImageQuality.Install(h);
         OpenXRAmbientOcclusion.Install(h);
         OpenXREquipmentQuality.Install(h);
@@ -255,7 +256,6 @@ internal static class RuntimeAdapter
     }
     static void PrepareWorldColor(Camera camera, UnityEngine.PostProcessing.PostProcessingProfile profile)
     {
-        if (SinglePassRenderer.Active) return;
         // Keep highlights until the native ACES/color-grading stage. VHVR's
         // legacy CopyCamera forces LDR even when the source camera uses HDR.
         if (!camera.allowHDR) camera.allowHDR = true;
@@ -274,7 +274,7 @@ internal static class RuntimeAdapter
     {
         // CopyCamera explicitly disables HDR. Correct it before the camera is
         // enabled, rather than changing its render target on the first cull.
-        if (to && to.name == "VRCamera" && !SinglePassRenderer.Active)
+        if (to && to.name == "VRCamera")
             to.allowHDR = true;
     }
     static void PreserveUnderwaterResources(Component __instance, GameObject ___underwaterLightBlocker)

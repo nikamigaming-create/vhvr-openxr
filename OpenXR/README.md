@@ -2,6 +2,8 @@
 
 [Download the public prerelease](https://github.com/nikamigaming-create/vhvr-openxr/releases/tag/openxr-v0.3.0). Download **VHVR-OpenXR-v0.3.0.zip** for installation; the separate source ZIP is for developers.
 
+The current source also includes an unreleased cleanup after 0.3.0: unused single-pass code is removed, optional gameplay policy and contact attachment are separated from baseline rig/presentation code, and both build entry points produce the complete matching package. See [TESTED.md](TESTED.md) for its separate validation.
+
 One package contains rebuilt VHVR gameplay, controller libraries, matching upstream bindings and asset bundles, and both runtime backends. Choose OpenXR or OpenVR at startup. Install BepInEx separately. The Nikami gameplay mod and launcher are excluded.
 
 OpenXR now has direct native input and its own head/hand rig behind shared interfaces. The managed SteamVR input/rig compatibility bridge is removed. OpenVR keeps its original loader, SDK input and authored rig.

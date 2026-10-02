@@ -365,7 +365,6 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
         probedRenderPasses = 0;
         displaySubsystem = null;
         InputAdapter.Shutdown();
-        SinglePassRenderer.Shutdown();
         VRBackendHost.Stop();
         Application.runInBackground = previousRunInBackground;
     }

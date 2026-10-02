@@ -28,8 +28,6 @@ internal static class OpenXREquipmentQuality
     {
         if (!OpenXRPlugin.Ready || !__result || !enableEquipEffects || backAttach
             || !__instance.GetComponentInParent<Player>()) return;
-        if (__instance.GetComponentInParent<Player>() == Player.m_localPlayer)
-            OpenXRTrackedEquipment.Attach(__result, __instance, itemHash, joint);
         // The native weapons atlas point-samples its color, normal and metal
         // maps. At hand distance those discrete samples produce large steps
         // in the highlights. Smooth the samples without a sharpening pass,

@@ -5,8 +5,7 @@ using Valve.VR;
 
 namespace ValheimVRMod.VRCore.Backends
 {
-    // SDK adapter shared by the original OpenVR runtime and the authored rig's
-    // managed-action bridge under OpenXR. Only this layer exposes Valve action types.
+    // Original OpenVR SDK adapter. OpenXR implements IVRInputBackend independently.
     public class SteamVRInputBackend : IVRInputBackend
     {
         readonly Dictionary<string, SteamVR_Action_Boolean> booleans = new Dictionary<string, SteamVR_Action_Boolean>();

@@ -68,6 +68,11 @@ internal sealed class OpenXRPhysicalHands : MonoBehaviour
 
     internal static void Install(Harmony harmony)
     {
+        if (VRGameplay.Options.PhysicalContact)
+        {
+            OpenXRTrackedEquipment.Install(harmony);
+            OpenXRTrackedEquipment.Attached += OpenXRPhysicalEquipment.Attach;
+        }
         var vr = AccessTools.TypeByName("ValheimVRMod.VRCore.VRPlayer");
         leftHand = AccessTools.MethodDelegate<Func<Hand>>(AccessTools.PropertyGetter(vr, "leftHand"));
         rightHand = AccessTools.MethodDelegate<Func<Hand>>(AccessTools.PropertyGetter(vr, "rightHand"));

@@ -70,16 +70,4 @@ namespace ValheimVRMod.VRCore.Backends
         public Vector3 GetTrackedObjectAngularVelocity() => Pose ? (Pose.origin ? Pose.origin.TransformDirection(Pose.GetAngularVelocity()) : Pose.GetAngularVelocity()) : Vector3.zero;
     }
 
-    public readonly struct VRGameplayOptions
-    {
-        public readonly bool PhysicalContact, PhysicalGrabbing, CreatureGrabbing, FingerArticulation;
-        public bool Any => PhysicalContact || PhysicalGrabbing || CreatureGrabbing || FingerArticulation;
-        public VRGameplayOptions(bool contact, bool grabbing, bool creatures, bool fingers)
-        { PhysicalContact = contact; PhysicalGrabbing = grabbing; CreatureGrabbing = creatures; FingerArticulation = fingers; }
-    }
-    public static class VRGameplay
-    {
-        public static VRGameplayOptions Options { get; private set; }
-        public static void Configure(VRGameplayOptions options) { Options = options; }
-    }
 }

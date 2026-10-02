@@ -12,7 +12,7 @@ Release 0.3.0 uses one payload and one rebuilt gameplay DLL. The companion selec
 | Shared rig components | `VRRig.cs`, `VRLaserPointer.cs`, `VRFade.cs`, `VRShaders.cs` | Head/hand transforms, pose publication, velocities, pointers, fades and shader access |
 | Original OpenVR implementation | `Backends/OpenVRRuntime.cs`, `SteamVRInputBackend.cs`, `OpenVRRigBackend.cs` | Upstream OpenVR loader/init/mirror behavior, Valve SDK input and authored rig; publishes poses into the shared rig |
 | Native OpenXR implementation | `OpenXR/src/nikami-openxr/OpenXRBackend.cs`, `OpenXRPlugin.cs`, `InputAdapter.cs`, `OpenXRRigBackend.cs` | Unity OpenXR lifecycle, direct Input System controller/action reads and an independently constructed rig |
-| OpenXR presentation | `RuntimeAdapter.cs` | Unity camera, rendering and scene-lifetime corrections; session recovery remains in the plugin |
+| OpenXR presentation | `RuntimeAdapter.cs`, `OpenXRTrackedEquipment.cs` | Unity camera, rendering and scene-lifetime corrections, plus tracked-equipment visibility; session recovery remains in the plugin |
 | Optional hand/object physics | `OpenXR/src/shared-gameplay/` | Articulation, swept hand/equipment contact, impact policy, native object/creature forces and release policy; four independent opt-ins, off by default |
 | Shared recenter policy | `Backends/VRRecenter.cs` | Active Unity XR input subsystem recenter plus the existing VHVR roomscale/pelvis/height policy |
 
@@ -43,6 +43,8 @@ EnableFingerArticulation = false
 ```
 
 Restart after changing them. With all four disabled, no added physics/finger hooks are installed. Contact enables added hand/weapon constraints and impact feedback. Item grabbing enables loose-item spring forces and throwing. Creature grabbing enables eligible creature restraint/repelling. Finger articulation enables controller-driven native joints and contact curl. Each option gates its own behavior; none implies the others. Upstream combat collision, climbing and other original gameplay remain part of VHVR.
+
+Their policy types live in `ValheimVRMod/VRCore/VRGameplayOptions.cs`, separate from `VRRig.cs`. The baseline equipment visibility guard emits an attachment event; optional contact subscribes only when enabled. The baseline guard has no dependency on physical-equipment classes. Rendering uses multipass/deferred; the unused single-pass renderer and its color-pass implementation have been removed. The legacy `Build-OpenXR.ps1` entry point delegates to `Build-CurrentFork.ps1`, so both commands build the same complete package.
 
 ## Keeping upstream current
 

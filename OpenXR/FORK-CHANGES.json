@@ -215,7 +215,7 @@
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/VRRig.cs",
-      "reason": "Shared hand/head/pose publication and independent, disabled-by-default gameplay enhancement options."
+      "reason": "Shared hand/head/pose publication without optional gameplay policy."
     },
     {
       "path": "ValheimVRMod/VRCore/Backends/VRShaders.cs",
@@ -252,6 +252,10 @@
     {
       "path": "ValheimVRMod/VRCore/VRManager.cs",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
+    },
+    {
+      "path": "ValheimVRMod/VRCore/VRGameplayOptions.cs",
+      "reason": "Independent, disabled-by-default gameplay enhancement options, separate from runtime/input/rig contracts."
     },
     {
       "path": "ValheimVRMod/VRCore/VRPlayer.cs",

@@ -1,4 +1,18 @@
-# VHVR OpenXR / OpenVR v0.3.0 validation
+# VHVR OpenXR / OpenVR validation
+
+## Unreleased source cleanup after 0.3.0
+
+Checked October 1, 2026 against the same upstream `c267f9d75dad21f1eac5c372d48c5a6f38003faa`; upstream master was rechecked and had not advanced. The legacy build entry point produced the complete 118-file payload. All payload hashes and 83 source provenance entries were verified (11 adapter, seven optional gameplay and 65 core corrections).
+
+- Production backend contracts: **150 PASS** (75 successful and 75 failed initialization checks).
+- Native OpenXR: **24 PASS, zero FAIL** with additions disabled in `cleanup-default-02`; **332 PASS, zero FAIL** with all additions enabled in `cleanup-enhanced-02`. Both final eyes were reviewed for 12 default stereo pairs, seven enhanced feature pairs and all 48 paired gravity samples. Native gravity dropped the released body 1.646 m and settled it at zero speed.
+- Compiled companion: unused single-pass renderer/color-pass types absent, no SteamVR SDK assembly references, and no optional gameplay references from the baseline equipment visibility guard.
+- Native OpenVR: simulated startup passed with all four additions enabled in `cleanup-openvr-null-01`, using the installed SteamVR null-HMD driver. Native OpenVR modules loaded; OpenXR modules were absent. Controller gameplay and physical headset acceptance remain unproven.
+- Gameplay SHA-256: `4A98D889A87C6DFF5BC44FAC08FAF5D2D066584261BF20E7D1B8762ED8A75C55`; companion SHA-256: `FF0EF31ADC16472989F7E7A723A8A5D0C6DDA87857964D8413471DBA7FC2D74E`.
+
+The isolated fixture's 120 original file states were restored and verified. The earlier enhanced cleanup run was aborted before completion to tighten the non-player attachment guard; it is not counted as a pass. These checks retain the simulator, resolution and physical-headset limits below. The published 0.3.0 artifacts retain their original hashes and validation.
+
+## Published 0.3.0
 
 Validated October 1, 2026 with owned Valheim 1.0.16, Unity 6000.0.75f1, Unity OpenXR 1.16.1 and Meta XR Simulator v207. The frozen package was installed in an isolated game fixture. Nikami gameplay was absent. Private test plugins, owned game/world data, simulator files and captures are excluded from the release.
 
