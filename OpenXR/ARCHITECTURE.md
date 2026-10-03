@@ -1,6 +1,6 @@
 # Shared gameplay and selectable VR backends
 
-Release 0.3.0 uses one payload and one rebuilt gameplay DLL. The companion selects `openxr` or `openvr` before VHVR initializes its runtime. Selection is fixed for the process; there is no live runtime switch or automatic fallback. See `TESTED.md` for validation and physical headset limits.
+Release 0.3.1 uses one payload and one rebuilt gameplay DLL. The companion selects `openxr` or `openvr` before VHVR initializes its runtime. Selection is fixed for the process; there is no live runtime switch or automatic fallback. See `TESTED.md` for validation and physical headset limits.
 
 ## Ownership and boundary
 
@@ -48,7 +48,7 @@ Their policy types live in `ValheimVRMod/VRCore/VRGameplayOptions.cs`, separate 
 
 ## Keeping upstream current
 
-The release merges upstream master `c267f9d75dad21f1eac5c372d48c5a6f38003faa`, nine commits newer than release 0.2.0, checked October 1, 2026. Shared gameplay changes are predominantly action/source/haptic and head/hand/pointer substitutions. Runtime initialization was extracted from upstream `VRManager` into `OpenVRRuntime`; subsequent upstream loader or mirror fixes must be carried into that file.
+The release merges upstream master `d78db84588c166431652c6fc50378e62b876079c`, checked October 3, 2026. Both newer upstream commits since 0.3.0 are included, covering minimap layout checks and HUD failure isolation. Shared gameplay changes are predominantly action/source/haptic and head/hand/pointer substitutions. Runtime initialization was extracted from upstream `VRManager` into `OpenVRRuntime`; subsequent upstream loader or mirror fixes must be carried into that file.
 
 After merging a new upstream snapshot:
 

@@ -1,7 +1,7 @@
 {
-  "upstreamCommit": "c267f9d75dad21f1eac5c372d48c5a6f38003faa",
-  "adapter_sha256": "E10E934A29F80DB0C27C6A87D199CBC36FB441665DE748615DB0B7DF9E4E62F2",
-  "gameplay_sha256": "C7F5EF28ACE5B7450AA729C008293706F0573F61B1136524CC69BEDDFCBD1088",
+  "upstreamCommit": "d78db84588c166431652c6fc50378e62b876079c",
+  "adapter_sha256": "949DADA38A1F0414024E711C38DB30D849ACAB14AAD6AFB907193C0E65E953F5",
+  "gameplay_sha256": "4F6DF23EBDD450A1ED636A523F4E63E1920B09EFCDDB9E0A4E1ED8F5DE80F18D",
   "forkCorrections": [
     {
       "path": "ValheimVRMod/Patches/ControlPatches.cs",
@@ -305,7 +305,7 @@
     },
     {
       "path": "ValheimVRMod/VRCore/UI/VRHud.cs",
-      "sha256": "D1C558DA54BC984C44AF2DA905CF3571185B7336794F58B5AF2F19A4E4A75ECA",
+      "sha256": "1D21151982192EECB8FAC90192F009039EAB0410013914FFA163D5B449F45C62",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
@@ -375,7 +375,7 @@
     },
     {
       "name": "OpenXRPlugin.cs",
-      "sha256": "AE3A16D57AB2E44AE0572510892AD6803439A6333227B8A6AB2451413C7298C5"
+      "sha256": "96FED2480F1506D3891A6088BF1BBCEC2179E92CE74798FBBF7635FE5CECEB7A"
     },
     {
       "name": "OpenXRRigBackend.cs",

@@ -1,5 +1,16 @@
 # VHVR OpenXR / OpenVR validation
 
+## 0.3.1 upstream sync
+
+Checked October 3, 2026 against live upstream master `d78db84588c166431652c6fc50378e62b876079c`. The latest official release remains `v0.10.5`; its tag and the latest master are both ancestors of this fork. The two new upstream commits are included: `b0f81d02` (small minimap layout handling) and `d78db845` (HUD failure isolation). The minimap source matches upstream exactly; the HUD keeps only the existing shared-backend substitutions and loop cleanup.
+
+- Complete 118-file package builds with zero errors. Legacy Unity/SDK warnings remain.
+- **236 managed checks pass:** 150 backend contracts, 41 input checks, 31 grab lifecycle checks and 14 render/focus checks. Production packaging version and stale-file guards pass.
+- Action facade regeneration produces the same two sets and 42 actions. OpenXR/OpenVR selection and all four disabled-by-default options are unchanged.
+- Gameplay SHA-256: `4F6DF23EBDD450A1ED636A523F4E63E1920B09EFCDDB9E0A4E1ED8F5DE80F18D`; companion SHA-256: `949DADA38A1F0414024E711C38DB30D849ACAB14AAD6AFB907193C0E65E953F5`.
+
+Fresh native and physical headset acceptance is pending for these DLLs, including the minimap changes. This remains an experimental community preview. Earlier native results below apply to their recorded builds.
+
 ## Code sweep candidate
 
 Checked October 1, 2026 after `7e1475a`, using upstream `c267f9d75dad21f1eac5c372d48c5a6f38003faa`. This is a new local candidate. The published 0.3.0 package is unchanged.

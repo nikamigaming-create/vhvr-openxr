@@ -15,7 +15,7 @@ using ValheimVRMod.VRCore.Backends;
 
 namespace Nikami.OpenXR;
 
-[BepInPlugin("nikami.openxr", "VHVR Backends", "0.3.0")]
+[BepInPlugin("nikami.openxr", "VHVR Backends", "0.3.1")]
 [BepInDependency("org.bepinex.plugins.valheimvrmod")]
 [DefaultExecutionOrder(-30000)]
 public sealed class OpenXRPlugin : BaseUnityPlugin

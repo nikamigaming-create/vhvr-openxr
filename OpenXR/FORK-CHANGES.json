@@ -1,5 +1,5 @@
 {
-  "upstreamCommit": "c267f9d75dad21f1eac5c372d48c5a6f38003faa",
+  "upstreamCommit": "d78db84588c166431652c6fc50378e62b876079c",
   "changes": [
     {
       "path": "ValheimVRMod/Patches/ControlPatches.cs",

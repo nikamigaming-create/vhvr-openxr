@@ -1,8 +1,8 @@
-# VHVR OpenXR / OpenVR v0.3.0 preview
+# VHVR OpenXR / OpenVR v0.3.1 preview
 
-[Download the public prerelease](https://github.com/nikamigaming-create/vhvr-openxr/releases/tag/openxr-v0.3.0). Download **VHVR-OpenXR-v0.3.0.zip** for installation; the separate source ZIP is for developers.
+[Download the public prerelease](https://github.com/nikamigaming-create/vhvr-openxr/releases/tag/openxr-v0.3.1). Download **VHVR-OpenXR-v0.3.1.zip** for installation; the separate source ZIP is for developers.
 
-The current source also includes an unreleased cleanup after 0.3.0: unused single-pass code is removed, optional gameplay policy and contact attachment are separated from baseline rig/presentation code, and both build entry points produce the complete matching package. See [TESTED.md](TESTED.md) for its separate validation.
+This update includes the upstream minimap and HUD fixes from October 2, plus the input and resource cleanup after 0.3.0. See [TESTED.md](TESTED.md) for the checks on each build.
 
 One package contains rebuilt VHVR gameplay, controller libraries, matching upstream bindings and asset bundles, and both runtime backends. Choose OpenXR or OpenVR at startup. Install BepInEx separately. The Nikami gameplay mod and launcher are excluded.
 
@@ -12,9 +12,9 @@ This is a community testing preview. Physical headset playability, comfort, hapt
 
 ## Version and upstream
 
-Upstream master is merged through [c267f9d75dad21f1eac5c372d48c5a6f38003faa](https://github.com/brandonmousseau/vhvr-mod/commit/c267f9d75dad21f1eac5c372d48c5a6f38003faa), checked October 1, 2026. This adds all nine upstream commits since preview 0.2.0, including barber mirrors/reflexive IK, barber UI positioning, momentum-scaled attacks, damage texts, mirror configuration and upper-body IK stabilization. Inclusion of their source changes is established; each upstream feature has not been separately playtested.
+Upstream master is merged through [d78db84588c166431652c6fc50378e62b876079c](https://github.com/brandonmousseau/vhvr-mod/commit/d78db84588c166431652c6fc50378e62b876079c), checked October 3, 2026. This includes the latest official release, 0.10.5, and both newer commits since preview 0.3.0. They protect the small minimap from unexpected layouts and keep one failed HUD element from stopping the others. Earlier upstream fixes remain included. Each upstream feature has not been separately playtested.
 
-The gameplay DLL retains upstream's internal 0.10.5 version string. The companion and release are version 0.3.0. `openxr-manifest.json` identifies the exact upstream snapshot, both backends and SHA-256 hashes for all 118 runtime files. `SOURCE-PROVENANCE.json` records adapter, shared physics and fork correction sources.
+The gameplay DLL retains upstream's internal 0.10.5 version string. The companion and release are version 0.3.1. `openxr-manifest.json` identifies the exact upstream snapshot, both backends and SHA-256 hashes for all 118 runtime files. `SOURCE-PROVENANCE.json` records adapter, shared physics and fork correction sources.
 
 Unchanged VR dependencies come from the official [VHVR v0.10.5 archive](https://github.com/brandonmousseau/vhvr-mod/releases/tag/v0.10.5). Current gameplay/controller assemblies, actions and tracked bundles replace that archive's versions. A separate VHVR installation is unnecessary.
 
@@ -91,7 +91,7 @@ Eligible small ground creatures include necks, boars and graylings, subject to s
 
 ## Validation and package contents
 
-The native OpenXR simulator suite covers default gameplay, opted-in enhancements, the packaged DLLs and both final eyes. Original OpenVR startup is checked separately; this does not establish OpenVR gameplay physics or a human headset playtest. Broad multiplayer, every weapon/controller combination and physical headset frame pacing remain unproven. [TESTED.md](TESTED.md) / `TESTED.txt` records the evidence.
+The 0.3.1 build passes managed input, backend and lifecycle checks. The earlier native OpenXR simulator and OpenVR startup results apply to their recorded builds. Fresh native acceptance and a human headset playtest are pending for 0.3.1. [TESTED.md](TESTED.md) / `TESTED.txt` records the evidence.
 
 OpenXR rendering uses multipass/deferred mode. Game binaries/data, BepInEx loader files, worlds, experimental single-pass caches, simulator/QA/filming plugins and Nikami gameplay/launcher files are excluded.
 
@@ -99,7 +99,7 @@ OpenXR rendering uses multipass/deferred mode. Game binaries/data, BepInEx loade
 
 ## Source and build
 
-The [repository](https://github.com/nikamigaming-create/vhvr-openxr) and `VHVR-OpenXR-v0.3.0-source.zip` contain corresponding fork sources, build scripts, backend contract tests, tracked VR assets and notices. See `LICENSE-GPL-3.0.txt`, `openxr-licenses` and `third-party-notices`.
+The [repository](https://github.com/nikamigaming-create/vhvr-openxr) and `VHVR-OpenXR-v0.3.1-source.zip` contain corresponding fork sources, build scripts, backend contract tests, tracked VR assets and notices. See `LICENSE-GPL-3.0.txt`, `openxr-licenses` and `third-party-notices`.
 
 Install .NET 8 SDK. Your owned game directory needs BepInEx and the VR libraries from this package or official VHVR v0.10.5 as build references. Run from this checkout:
 

@@ -3,8 +3,8 @@ param(
     [string]$BaseVHVRArchive,
     [string]$OpenXRPackage,
     [string]$Destination,
-    [string]$UpstreamCommit = 'c267f9d75dad21f1eac5c372d48c5a6f38003faa',
-    [string]$ReleaseVersion = '0.3.0'
+    [string]$UpstreamCommit = 'd78db84588c166431652c6fc50378e62b876079c',
+    [string]$ReleaseVersion = '0.3.1'
 )
 $ErrorActionPreference = 'Stop'
 $openxrRoot = Split-Path $PSScriptRoot -Parent
