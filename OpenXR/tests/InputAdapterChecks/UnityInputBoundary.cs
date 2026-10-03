@@ -46,6 +46,7 @@ namespace UnityEngine.InputSystem
     public class InputControl { }
     public class InputDevice
     {
+        public string layout = "OculusTouchControllerOpenXR";
         public bool added = true, enabled = true;
         public readonly HashSet<string> usages = new();
         readonly Dictionary<string, InputControl> controls = new(StringComparer.OrdinalIgnoreCase);
@@ -110,7 +111,7 @@ namespace Nikami.OpenXR
 {
     internal static class OpenXRPlugin
     {
-        internal sealed class LogBoundary { public void LogInfo(string text) { } }
+        internal sealed class LogBoundary { public void LogInfo(string text) { } public void LogWarning(string text) { } }
         internal static readonly LogBoundary Log = new();
     }
 }

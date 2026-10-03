@@ -1,7 +1,7 @@
 {
   "upstreamCommit": "d78db84588c166431652c6fc50378e62b876079c",
-  "adapter_sha256": "949DADA38A1F0414024E711C38DB30D849ACAB14AAD6AFB907193C0E65E953F5",
-  "gameplay_sha256": "4F6DF23EBDD450A1ED636A523F4E63E1920B09EFCDDB9E0A4E1ED8F5DE80F18D",
+  "adapter_sha256": "D9DF62EE4DB6424BF0C4DD29CB22137AACB08F9AAC367F2E53DA6AB86CECC17C",
+  "gameplay_sha256": "51646A70EFE716ADF3F3C39756CCBA70C1C21637EDB74387678643A9820A7D2F",
   "forkCorrections": [
     {
       "path": "ValheimVRMod/Patches/ControlPatches.cs",
@@ -190,7 +190,7 @@
     },
     {
       "path": "ValheimVRMod/Utilities/PhysicsEstimator.cs",
-      "sha256": "D82E65A43FF8BB8C22E3286AB52D8A90EDD510CE6BC1B4073A357ED763EE4F6E",
+      "sha256": "DF5FF4C58DBA36628C7492A73092E9783A93CCDDB73CF1686DAAE3988C761B4A",
       "reason": "Use neutral tracked-hand velocities and release the owned debug renderer and material through OnDestroy."
     },
     {
@@ -280,7 +280,7 @@
     },
     {
       "path": "ValheimVRMod/VRCore/UI/ConfigSettings.cs",
-      "sha256": "AA9B652770594DB62F5E8C490C2F9D3069617A615FE6050C53D8D3CAB0500843",
+      "sha256": "9A420F11FF7EB78E30361B9241BC74003B5EEBA146006C3F153A0AB39E771B39",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
@@ -290,7 +290,7 @@
     },
     {
       "path": "ValheimVRMod/VRCore/UI/MissingBindingsPrompt.cs",
-      "sha256": "7ECFC0BF14EA65265342AAF528E3FB3215067F6F4E9E3B27AFF6ED004C71B685",
+      "sha256": "CDE0CEA509E519EDC17C380D7EC63B34770C8605185D22CC6E8C825B1459DD43",
       "reason": "Route input, hand/pointer/head transforms, haptics or fades through shared contracts while preserving upstream gameplay."
     },
     {
@@ -350,8 +350,20 @@
       "sha256": "210BA548884BAB0B68D1A7A196B9F5F22FCA1DF98B0B297A53808B21D4E5E9A9"
     },
     {
+      "name": "BackendChoices.cs",
+      "sha256": "9D7A237C16E47F66E31B93BCF203BA7B31ABD44DCF725EEEFFEAD7B194ADE5B1"
+    },
+    {
+      "name": "BindingEditor.cs",
+      "sha256": "92F75E502AD4449890C92F2D5D6720191D9CBF36FACCC8E7BA309BCAE0209121"
+    },
+    {
+      "name": "BindingProfiles.cs",
+      "sha256": "4F8522BAB7FCDCB1BF7600D77C87854FDA1CD235877D02A809CC2337CF48678B"
+    },
+    {
       "name": "InputAdapter.cs",
-      "sha256": "D2EB587DBCCF7FB40F688D6150421484502754065D743D671D31D49431DB2BEC"
+      "sha256": "2EA3BAA83A78A5F780E4C9EB82AB12B4D633458C36A6F730EC9075E08748B0FB"
     },
     {
       "name": "OpenXRAmbientOcclusion.cs",
@@ -359,7 +371,7 @@
     },
     {
       "name": "OpenXRBackend.cs",
-      "sha256": "7F4CF5D9E2AEDA90B1C3A7303FF5EE4F556C4D1EDE5B6CBC791CA3F4D3CCD2C4"
+      "sha256": "5AE070119BE44A7237817B3031F2C3381A2368E28DB2675A89D319B88E2A24D5"
     },
     {
       "name": "OpenXREquipmentQuality.cs",
@@ -375,11 +387,11 @@
     },
     {
       "name": "OpenXRPlugin.cs",
-      "sha256": "96FED2480F1506D3891A6088BF1BBCEC2179E92CE74798FBBF7635FE5CECEB7A"
+      "sha256": "A59A06A1A0185F500A3D1C995D49F1DFECB88968D878594734F0DF6A7DAD1784"
     },
     {
       "name": "OpenXRRigBackend.cs",
-      "sha256": "E2EE200DDDCFFE81F7A00A2068C77BA9E9BAD42E4E32B1A07E3CB95FADD863B6"
+      "sha256": "F8508CED3D342D0011558DE3B3112D557E86AEB76C09170565F78AE8F6682665"
     },
     {
       "name": "OpenXRTrackedEquipment.cs",

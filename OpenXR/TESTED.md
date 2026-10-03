@@ -1,5 +1,20 @@
 # VHVR OpenXR / OpenVR validation
 
+## 0.3.2 controller editor and camera fix
+
+Checked October 3, 2026 against live upstream master `d78db84588c166431652c6fc50378e62b876079c`. Official `v0.10.5` and both newer master fixes remain included.
+
+- Complete 118-file package builds with zero errors. Legacy Unity/SDK warnings remain.
+- **275 managed checks pass:** 150 backend contracts, 80 input/profile/config checks, 31 grab lifecycle checks and 14 frame/focus checks. Production version and payload guards pass. The warmed 500-frame input workload allocates zero bytes.
+- Native OpenXR daytime run: the rig copies the authored camera tag, `Utils.GetMainCamera()` returns `VRCamera`, day fraction is 0.5 and native sunlight intensity is 1.7. Lighting updates in both final eyes.
+- Native XR pointer opens the controller editor, adds an input, saves personal JSON, reopens, resets defaults and retains the previous-layout backup. The native settings screen saves a changed physics opt-in and displays the backend chooser. Physics/backend changes require restart.
+- Final-eye captures show native hands/fingers, sword/shield and axe during small wrist motions and locomotion. A native dynamic wood item is acquired, lifted, rotated and released with gravity. Withdrawal succeeds; the contact take enters the safety yield state. It does not establish sustained pressure/contact acceptance.
+- Captures use Meta XR Simulator v207, scripted semantic controller input, a staged private save and native Valheim audio. Both final compositor eyes are recorded at 840 x 880 each and 30 fps. The edited walkthrough shows the left eye and labelled menu close-ups; the full stereo recording retains all seven clips at recorded speed.
+
+Gameplay SHA-256: `51646A70EFE716ADF3F3C39756CCBA70C1C21637EDB74387678643A9820A7D2F`. Companion SHA-256: `D9DF62EE4DB6424BF0C4DD29CB22137AACB08F9AAC367F2E53DA6AB86CECC17C`.
+
+Human headset hand angles, comfort, haptics and full-resolution performance remain unverified. The controller layouts have managed coverage; native controller testing here uses Touch. OpenVR controller playback and creature restraint were not freshly rechecked on these DLLs. This is an experimental community preview.
+
 ## 0.3.1 upstream sync
 
 Checked October 3, 2026 against live upstream master `d78db84588c166431652c6fc50378e62b876079c`. The latest official release remains `v0.10.5`; its tag and the latest master are both ancestors of this fork. The two new upstream commits are included: `b0f81d02` (small minimap layout handling) and `d78db845` (HUD failure isolation). The minimap source matches upstream exactly; the HUD keeps only the existing shared-backend substitutions and loop cleanup.

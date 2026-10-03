@@ -1,6 +1,6 @@
 # Shared gameplay and selectable VR backends
 
-Release 0.3.1 uses one payload and one rebuilt gameplay DLL. The companion selects `openxr` or `openvr` before VHVR initializes its runtime. Selection is fixed for the process; there is no live runtime switch or automatic fallback. See `TESTED.md` for validation and physical headset limits.
+Release 0.3.2 uses one payload and one rebuilt gameplay DLL. The companion selects `openxr` or `openvr` before VHVR initializes its runtime. Selection is fixed for the process; there is no live runtime switch or automatic fallback. See `TESTED.md` for validation and physical headset limits.
 
 ## Ownership and boundary
 
@@ -26,7 +26,9 @@ In OpenVR mode the companion selects the original loader and authored rig. The O
 
 The single package retains Valve SDK/controller assemblies, authored assets and shader names for its OpenVR backend. Deserializing an asset or using a shader named `SteamVR_*` is different from executing Valve runtime/input code. OpenXR's input and rig paths do not execute that SDK. `Valve.Newtonsoft.Json` is the game's JSON library, used to read the upstream binding file.
 
-OpenXR uses world-space GUI and packaged bindings. SteamVR's overlay keyboard, binding editor, mirror modes and body-tracker provider remain OpenVR services. OpenXR text fields keep their native panel and accept a physical keyboard; they do not start a SteamVR overlay keyboard. Optical hand tracking and native OpenXR body tracking are not implemented. These services are explicit feature gaps, not a hidden managed input bridge.
+OpenXR uses world-space GUI, controller-specific upstream defaults and its own in-game binding editor. `IVRBackend.OpenBindingUI` selects that editor or SteamVR's original editor. `BindingProfiles` stores personal JSON separately; `InputAdapter` compiles the chosen hand layouts when a device or layout changes. The shared settings UI provides the canvas and VR pointer, while the OpenXR provider owns editing and storage.
+
+SteamVR's overlay keyboard, mirror modes and body-tracker provider remain OpenVR services. OpenXR text fields accept a physical keyboard. Advanced SteamVR scroll/flick/hold tuning, optical hand tracking and native OpenXR body tracking remain gaps.
 
 The optional Nikami gameplay integration was removed. The package supplies VHVR and its runtime providers; it does not contain a Nikami gameplay mod or launcher.
 

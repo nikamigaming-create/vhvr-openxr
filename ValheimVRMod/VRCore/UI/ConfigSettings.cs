@@ -19,6 +19,8 @@ using ValheimVRMod.Patches;
 
 namespace ValheimVRMod.VRCore.UI {
     public class ConfigSettings {
+        private static ConfigFile backendConfiguration;
+        public static void SetBackendConfiguration(ConfigFile configuration) { backendConfiguration = configuration; }
 
         // TODO: Refactor and fix VHVR settings dialog layout.
         private const bool ENABLE_VHVR_SETTINGS_DIALOG = true;
@@ -36,6 +38,7 @@ namespace ValheimVRMod.VRCore.UI {
         private static GameObject keyBindingPrefab;
         private static GameObject transformButtonPrefab;
         private static GameObject settings;
+        private static GameObject controllerBindingDialog;
         private static Transform menuList;
         private static Transform menuParent;
         private static ConfigComponent tmpComfigComponent;
@@ -78,6 +81,9 @@ namespace ValheimVRMod.VRCore.UI {
                     // VR conveniences: in flatscreen the keyboard has keys for both.
                     if (!VHVRConfig.NonVrPlayer())
                     {
+                        AddMenuEntry("Controller bindings", menuEntry, Vector2.up * MENU_ENTRY_HEIGHT * addedMenuEntryCount,
+                            () => VRInput.OpenBindingUI(VRInputActions.Valheim));
+                        addedMenuEntryCount++;
                         AddMenuEntry("Screenshot", menuEntry, Vector2.up * MENU_ENTRY_HEIGHT * addedMenuEntryCount, CaptureScreenshot);
                         addedMenuEntryCount++;
 
@@ -217,7 +223,9 @@ namespace ValheimVRMod.VRCore.UI {
             // reorder bepinex configs by sections
             var orderedConfig = new Dictionary<string, Dictionary<string, ConfigEntryBase>>();
             int sectionCount = 0;
-            foreach (KeyValuePair<ConfigDefinition, ConfigEntryBase> keyValuePair in VHVRConfig.config) {
+            var configurationEntries = new List<KeyValuePair<ConfigDefinition, ConfigEntryBase>>(VHVRConfig.config);
+            if (backendConfiguration != null) configurationEntries.AddRange(backendConfiguration);
+            foreach (KeyValuePair<ConfigDefinition, ConfigEntryBase> keyValuePair in configurationEntries) {
 
                 // skip entries with section "Immutable", these are not changeable at runtime
                 if (keyValuePair.Key.Section == "Immutable") {
@@ -254,11 +262,42 @@ namespace ValheimVRMod.VRCore.UI {
             keyboardMouseSettings.UpdateBindings();
         }
 
-        public static bool IsOpen => settings != null;
+        public static bool IsOpen => settings != null || controllerBindingDialog != null;
+
+        // Both providers use the same binding entry point. The native OpenXR
+        // editor inherits the game's canvas, world-space pointer and styling.
+        public static GameObject CreateControllerBindingDialog()
+        {
+            if (controllerBindingDialog != null) return controllerBindingDialog;
+            if (settingsPrefab == null || menuParent == null) return null;
+            controllerBindingDialog = Object.Instantiate(settingsPrefab, menuParent);
+            controllerBindingDialog.name = "VHVRControllerBindings";
+            controllerBindingDialog.AddComponent<SettingsCloneMarker>();
+            StripLocalization(controllerBindingDialog);
+            var panel = controllerBindingDialog.transform.Find("Panel");
+            panel.Find("Title").GetComponent<TMP_Text>().text = "Controller bindings";
+            panel.Find("TabButtons").gameObject.SetActive(false);
+            panel.Find("TabContent").gameObject.SetActive(false);
+            var body = new GameObject("ControllerBindingsBody", typeof(RectTransform)).GetComponent<RectTransform>();
+            body.gameObject.layer = panel.gameObject.layer;
+            body.SetParent(panel, false);
+            body.anchorMin = new Vector2(0.025f, 0.14f);
+            body.anchorMax = new Vector2(0.975f, 0.85f);
+            body.offsetMin = body.offsetMax = Vector2.zero;
+            controllerBindingDialog.SetActive(true);
+            controllerBindingDialog.transform.SetAsLastSibling();
+            return controllerBindingDialog;
+        }
 
         // Closes the dialog, saving the edited values (OK) or discarding them (Back). The values are saved as the
         // dialog's ConfigComponents are destroyed, see ConfigComponent.OnDestroy().
         public static void Close(bool save) {
+            if (controllerBindingDialog != null)
+            {
+                Object.Destroy(controllerBindingDialog);
+                controllerBindingDialog = null;
+                return;
+            }
             if (!IsOpen) {
                 return;
             }
@@ -325,6 +364,20 @@ namespace ValheimVRMod.VRCore.UI {
                     posY = 250;
                     posX = 250;
                 }
+            }
+            if (section.Key == "Controls" && !VHVRConfig.NonVrPlayer())
+            {
+                var bindingButton = Object.Instantiate(settingsPrefab.transform.Find("Panel").Find("Back").gameObject, newTab);
+                StripLocalization(bindingButton);
+                bindingButton.name = "ControllerBindings";
+                bindingButton.GetComponentInChildren<TMP_Text>().text = "Controller bindings";
+                var rect = bindingButton.GetComponent<RectTransform>();
+                rect.sizeDelta = new Vector2(300, 30);
+                rect.anchoredPosition = new Vector2(posX + 50, posY);
+                Object.Destroy(bindingButton.GetComponent<UIGamePad>());
+                var button = bindingButton.GetComponent<Button>();
+                button.onClick = new Button.ButtonClickedEvent();
+                button.onClick.AddListener(() => VRInput.OpenBindingUI(VRInputActions.Valheim));
             }
         }
 
@@ -449,6 +502,11 @@ namespace ValheimVRMod.VRCore.UI {
             }
 
             var type = acceptableValues.GetType();
+            // Custom validators can inherit the standard list/range UI.
+            while (type != null && (!type.IsGenericType ||
+                (type.GetGenericTypeDefinition() != typeof(AcceptableValueList<>) &&
+                 type.GetGenericTypeDefinition() != typeof(AcceptableValueRange<>)))) type = type.BaseType;
+            if (type == null) return false;
             if (type.GetGenericTypeDefinition() == typeof(AcceptableValueList<>)) {
                 createValueList(configEntry, parent, pos, type, acceptableValues);
                 return true;

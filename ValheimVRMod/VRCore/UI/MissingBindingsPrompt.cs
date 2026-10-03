@@ -98,9 +98,9 @@ namespace ValheimVRMod.VRCore.UI
 
             UnifiedPopup.Push(new YesNoPopup(
                 "Missing controller bindings",
-                "Your SteamVR controller binding has nothing bound to: " + actionList + ". " +
+                "Your controller binding has nothing bound to: " + actionList + ". " +
                 "This usually happens with a custom binding saved for an older version of the mod.\n\n" +
-                "Open the SteamVR binding settings to bind them, or to switch back to the default binding?",
+                "Open the controller binding settings to bind them, or to switch back to the default binding?",
                 () => {
                     UnifiedPopup.Pop();
                     VRInput.OpenBindingUI(VRInputActions.Valheim);
@@ -138,7 +138,7 @@ namespace ValheimVRMod.VRCore.UI
                 return;
             }
             missingActionList = string.Join(", ", missingActions);
-            LogWarning("The current SteamVR binding leaves essential actions unbound: " + missingActionList);
+            LogWarning("The current controller binding leaves essential actions unbound: " + missingActionList);
             // Without the laser click the popup could not be clicked, so the binding UI is opened in its place.
             canClickPopup = VRInputActions.valheim_LeftClick.activeBinding;
         }

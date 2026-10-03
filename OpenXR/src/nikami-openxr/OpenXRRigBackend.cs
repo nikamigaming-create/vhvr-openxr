@@ -22,6 +22,9 @@ internal sealed class OpenXRRigBackend : IVRRigBackend
         var template = authoredTemplate.GetComponentsInChildren<Camera>(true).FirstOrDefault(c => c.name == "VRCamera");
         if (!template) throw new InvalidOperationException("Authored VHVR VRCamera template is missing.");
         camera.CopyFrom(template);
+        // CopyFrom copies camera settings, not the GameObject tag. Valheim's
+        // environment and lighting find the active world view through Camera.main.
+        rig.Head.gameObject.tag = template.gameObject.tag;
         camera.enabled = false;
         camera.stereoTargetEye = StereoTargetEyeMask.Both;
         rig.Head.gameObject.AddComponent<AudioListener>();

@@ -34,7 +34,6 @@ internal sealed class OpenXRInputBackend : IVRInputBackend
     public void Haptic(string path, VRInputSource source, float delay, float duration, float frequency, float amplitude) => InputAdapter.Haptic(source, delay, duration, amplitude);
     public bool OpenBindingUI(string actionSetPath)
     {
-        OpenXRPlugin.Log.LogInfo("OpenXR uses the packaged action bindings; the SteamVR binding editor is unavailable for this backend.");
-        return false;
+        return BindingEditor.Open(actionSetPath);
     }
 }

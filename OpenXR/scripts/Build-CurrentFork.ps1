@@ -4,7 +4,7 @@ param(
     [string]$OpenXRPackage,
     [string]$Destination,
     [string]$UpstreamCommit = 'd78db84588c166431652c6fc50378e62b876079c',
-    [string]$ReleaseVersion = '0.3.1'
+    [string]$ReleaseVersion = '0.3.2'
 )
 $ErrorActionPreference = 'Stop'
 $openxrRoot = Split-Path $PSScriptRoot -Parent

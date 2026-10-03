@@ -4,6 +4,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
 using UnityEngine.InputSystem.XR;
 using ValheimVRMod.VRCore.Backends;
+using Valve.Newtonsoft.Json.Linq;
 
 static class Program
 {
@@ -18,12 +19,13 @@ static class Program
         internal readonly Vector2Control Stick;
         internal readonly ButtonControl Tracked;
         internal readonly Vector3Control Position, Velocity, AngularVelocity;
-        internal Controller(string hand)
+        internal Controller(string hand, string layout = "OculusTouchControllerOpenXR", string stickName = "thumbstick")
         {
+            Device.layout = layout;
             Device.usages.Add(hand);
             Trigger = Device.Add("trigger", new AxisControl());
             Grip = Device.Add("grip", new AxisControl());
-            Stick = Device.Add("thumbstick", new Vector2Control());
+            Stick = Device.Add(stickName, new Vector2Control());
             Tracked = Device.Add("isTracked", new ButtonControl { Value = 1 });
             Position = Device.Add("devicePosition", new Vector3Control());
             Velocity = Device.Add("deviceVelocity", new Vector3Control());
@@ -34,7 +36,8 @@ static class Program
     static int Main()
     {
         Action[] scenarios = { SkippedReads, SourceEdgesAndCallbacks, ChordsAndAxis, ActionSetsAndHysteresis,
-            SameFrameTrackingLoss, TrackingStateFallback, DeviceReplacement, HapticsAndShutdown, SteadyInputAllocations };
+            SameFrameTrackingLoss, TrackingStateFallback, DeviceReplacement, HapticsAndShutdown, SteadyInputAllocations,
+            ControllerProfiles, TrackpadModes, SavedLayoutsAndRecovery, InvalidSavedLayout, BackendConfigChoices };
         int failures = 0;
         foreach (var scenario in scenarios)
         {
@@ -42,6 +45,7 @@ static class Program
             catch (Exception error) { failures++; Console.Error.WriteLine("FAIL: " + scenario.Method.Name + ": " + error.Message); }
         }
         InputAdapter.Shutdown();
+        BindingProfiles.Configure(null);
         Console.WriteLine($"{checks} checks; {failures} failed scenarios. Production InputAdapter + contract; fake clock/Unity controls, no native hardware.");
         return failures == 0 ? 0 : 1;
     }
@@ -49,6 +53,14 @@ static class Program
     {
         if (!condition) throw new InvalidOperationException(message);
         checks++;
+    }
+    static void BackendConfigChoices()
+    {
+        var choices = new BackendChoices();
+        Require((string)choices.Clamp("OpenXR") == "openxr" && choices.IsValid("OpenXR"), "case-insensitive backend config remains valid");
+        Require((string)choices.Clamp("STEAMVR") == "steamvr" && choices.IsValid("STEAMVR"), "legacy SteamVR config alias remains valid");
+        Require((string)choices.Clamp("invalid") == "invalid" && !choices.IsValid("invalid"), "invalid backend survives BepInEx clamp for host rejection");
+        Require(choices.AcceptableValues.SequenceEqual(new[] { "openxr", "openvr", "steamvr" }), "native backend chooser has both providers and legacy alias");
     }
     static void Reset(string fixture = "upstream")
     {
@@ -200,5 +212,156 @@ static class Program
         Frame(); Digital(Use); Digital("/ACTIONS/VALHEIM/IN/USE", VRInputSource.Any);
         Digital(Grab, VRInputSource.RightHand); InputAdapter.ReadAxis(Walk, VRInputSource.LeftHand);
         InputAdapter.IsBound(Split, VRInputSource.LeftHand); InputAdapter.IsActionSetActive("/actions/Valheim", VRInputSource.Any);
+    }
+    static void ReplaceControllers(string layout, string stickName = "thumbstick")
+    {
+        InputSystem.devices.Clear();
+        left = new Controller(CommonUsages.LeftHand, layout, stickName);
+        right = new Controller(CommonUsages.RightHand, layout, stickName);
+        InputSystem.devices.Add(left.Device); InputSystem.devices.Add(right.Device);
+        InputSystem.Notify(left.Device, InputDeviceChange.Added);
+    }
+    static void ControllerProfiles()
+    {
+        Reset();
+        Require(BindingProfiles.Find("knuckles") != null && BindingProfiles.Find("vive_controller") != null && BindingProfiles.Find("holographic_controller") != null, "All upstream controller layouts are discovered from the action manifest.");
+        ReplaceControllers("ValveIndexController");
+        var force = left.Device.Add("trackpadForce", new AxisControl());
+        left.Device.Add("trackpad", new Vector2Control());
+        left.Device.Add("primaryButton", new ButtonControl());
+        Frame();
+        Require(InputAdapter.ProfileForHand(1).Id == "knuckles", "Index selects the upstream Knuckles layout.");
+        left.Grip.Value = 1; force.Value = 0; Frame();
+        const string menu = "/actions/Valheim/in/ToggleMenu";
+        Require(Digital(Grab).Held && !Digital(menu).Held, "Index keeps the stock grip binding and does not use grip closure for its trackpad-force menu binding.");
+        force.Value = 1; Frame();
+        Require(Digital(menu).Down, "Index trackpad force threshold presses ToggleMenu.");
+        force.Value = 0; Frame(); Require(Digital(menu).Up, "Index force release ends ToggleMenu.");
+        left.Stick.Value = new Vector2(.2f, .4f); Frame();
+        Require(InputAdapter.ReadAxis(Walk, VRInputSource.LeftHand).y == .4f, "Index thumbstick spelling maps to Walk.");
+        right.Device.layout = "OculusTouchControllerOpenXR";
+        InputSystem.Notify(right.Device, InputDeviceChange.ConfigurationChanged); Frame();
+        Require(InputAdapter.ProfileForHand(1).Id == "knuckles" && InputAdapter.ProfileForHand(2).Id == "oculus_touch", "Mixed controllers select a layout for each hand.");
+        ReplaceControllers("WMRSpatialController", "joystick");
+        left.Device.Add("touchpad", new Vector2Control()); right.Device.Add("touchpad", new Vector2Control());
+        Frame(); left.Stick.Value = new Vector2(.1f, 0); Frame();
+        Require(InputAdapter.ProfileForHand(1).Id == "holographic_controller" && InputAdapter.ReadAxis(Walk, VRInputSource.LeftHand).sqrMagnitude == 0, "WMR selects its layout and preserves its stock walk deadzone.");
+        left.Stick.Value = new Vector2(.6f, 0); Frame();
+        Require(Math.Abs(InputAdapter.ReadAxis(Walk, VRInputSource.LeftHand).x - .5f) < .001f, "WMR native joystick alias and deadzone rescale work.");
+        ReplaceControllers("KHRSimpleController", "absentStick"); Frame();
+        Require(InputAdapter.ProfileForHand(1) == null && !InputAdapter.IsBound(Walk, VRInputSource.LeftHand), "A controller without enough controls is not advertised as a bound Touch controller.");
+    }
+    static void TrackpadModes()
+    {
+        Reset(); ReplaceControllers("ViveController", "trackpad");
+        var clicked = left.Device.Add("trackpadClicked", new ButtonControl());
+        left.Device.Add("trackpadTouched", new ButtonControl { Value = 1 });
+        Frame();
+        Require(InputAdapter.ProfileForHand(1).Id == "vive_controller", "Vive selects its trackpad layout.");
+        left.Stick.Value = new Vector2(.2f, .4f); Frame();
+        Require(InputAdapter.ReadAxis(Walk, VRInputSource.LeftHand).y == .4f, "Vive trackpad position maps to Walk.");
+        const string north = "/actions/Valheim/in/Jump";
+        // Make a focused layout fixture using the real controller-mode parser.
+        var profile = InputAdapter.ProfileForHand(1);
+        var doc = (JObject)profile.Current.DeepClone();
+        ((JArray)GameSet(doc)["sources"]).Add(new JObject {
+            ["path"] = "/user/hand/left/input/trackpad", ["mode"] = "dpad",
+            ["parameters"] = new JObject { ["sub_mode"] = "click", ["deadzone_pct"] = 25 },
+            ["inputs"] = new JObject { ["north"] = new JObject { ["output"] = north } }
+        });
+        foreach (var source in ((JArray)GameSet(doc)["sources"]).OfType<JObject>().ToArray())
+            if ((string)source["mode"] != "dpad") foreach (var input in ((JObject)source["inputs"]).Properties().ToArray())
+                if (string.Equals((string)input.Value["output"], north, StringComparison.OrdinalIgnoreCase)) input.Remove();
+        profile.Current = doc; InputAdapter.RefreshBindings(); Frame();
+        left.Stick.Value = new Vector2(0, .8f); Frame(); Require(!Digital(north).Held, "Click-gated pad direction does not fire on position alone.");
+        clicked.Value = 1; Frame(); Require(Digital(north).Down, "Click plus pad direction triggers the rebound action.");
+        left.Stick.Value = new Vector2(.8f, 0); Frame(); Require(Digital(north).Up, "Pad direction respects its angular sector.");
+        clicked.Value = 0;
+        doc = (JObject)profile.Current.DeepClone();
+        ((JArray)GameSet(doc)["sources"]).Add(new JObject {
+            ["path"] = "/user/hand/left/input/trackpad", ["mode"] = "scroll",
+            ["inputs"] = new JObject { ["scroll"] = new JObject { ["output"] = Walk } }
+        });
+        foreach (var source in ((JArray)GameSet(doc)["sources"]).OfType<JObject>().ToArray())
+            if ((string)source["mode"] != "scroll") foreach (var input in ((JObject)source["inputs"]).Properties().ToArray())
+                if (string.Equals((string)input.Value["output"], Walk, StringComparison.OrdinalIgnoreCase)) input.Remove();
+        profile.Current = doc; InputAdapter.RefreshBindings(); Frame();
+        left.Stick.Value = new Vector2(.6f, .3f); Frame();
+        var scroll = InputAdapter.ReadAxis(Walk, VRInputSource.LeftHand);
+        Require(Math.Abs(scroll.x + .2f) < .001f && Math.Abs(scroll.y - .3f) < .001f, "Trackpad scroll reports movement rather than held position.");
+        Require(InputAdapter.ReadAxis(Walk, VRInputSource.Any).x == scroll.x, "Any and individual sources share one scroll sample.");
+        Frame(); Require(InputAdapter.ReadAxis(Walk, VRInputSource.LeftHand).sqrMagnitude == 0, "Stationary trackpad does not continue scrolling.");
+    }
+    static JObject GameSet(JObject doc) => (JObject)((JObject)doc["bindings"]).Properties().First(property => property.Name.Equals("/actions/Valheim", StringComparison.OrdinalIgnoreCase)).Value;
+    static JObject Rebound(BindingProfile profile)
+    {
+        var doc = (JObject)profile.Defaults.DeepClone();
+        foreach (var set in ((JObject)doc["bindings"]).Properties())
+        foreach (var source in set.Value["sources"] ?? new JArray())
+        foreach (var input in ((JObject)source["inputs"]).Properties().ToArray())
+            if (string.Equals((string)input.Value["output"], Use, StringComparison.OrdinalIgnoreCase) || ((string)input.Value["output"]).EndsWith("/LeftClick", StringComparison.OrdinalIgnoreCase)) input.Remove();
+        ((JArray)GameSet(doc)["sources"]).Add(new JObject {
+            ["path"] = "/user/hand/left/input/x", ["mode"] = "button",
+            ["inputs"] = new JObject { ["click"] = new JObject { ["output"] = Use } }
+        });
+        return doc;
+    }
+    static void SavedLayoutsAndRecovery()
+    {
+        Reset();
+        string root = Path.Combine(Path.GetTempPath(), "vhvr-bindings-" + Guid.NewGuid().ToString("N"));
+        BindingProfiles.Configure(root);
+        var profile = BindingProfiles.Find("oculus_touch");
+        string defaults = profile.Defaults.ToString();
+        var button = left.Device.Add("primaryButton", new ButtonControl());
+        InputSystem.Notify(left.Device, InputDeviceChange.ConfigurationChanged);
+        Frame();
+        BindingProfiles.Save(profile, Rebound(profile));
+        Require(File.Exists(BindingProfiles.PersonalPath(profile)), "Personal JSON is saved outside shipped defaults.");
+        Require(profile.Defaults.ToString() == defaults, "Saving leaves the upstream layout unchanged.");
+        InputAdapter.RefreshBindings(); button.Value = 1; Frame();
+        Require(Digital(Use).Held && !Digital(Use).Down, "Applying a binding does not invent a press for a held button.");
+        button.Value = 0; Frame(); button.Value = 1; Frame(); Require(Digital(Use).Down, "The saved replacement actually drives gameplay input.");
+        const string click = "/actions/Valheim/in/LeftClick";
+        Frame(); Require(!InputAdapter.IsBound(click, VRInputSource.LeftHand), "A removed pointer action is reported unbound.");
+        InputAdapter.EditBindings(true); Frame(); left.Trigger.Value = 1; Frame();
+        Require(InputAdapter.IsBound(click, VRInputSource.LeftHand) && Digital(click).Down, "The binding editor restores default pointer controls even for a broken personal layout.");
+        InputAdapter.EditBindings(false); Frame(); Require(!InputAdapter.IsBound(click, VRInputSource.LeftHand), "Cancel returns to the previous personal layout.");
+        InputAdapter.LoadBindings(); Frame();
+        Require(Digital(Use).Held && !Digital(Use).Down, "A saved layout survives a reload without a synthetic press.");
+        profile = BindingProfiles.Find("oculus_touch");
+        BindingProfiles.Save(profile, Rebound(profile));
+        Require(File.Exists(BindingProfiles.PersonalPath(profile) + ".bak"), "Replacing a save keeps the previous personal layout.");
+        BindingProfiles.Reset(profile); InputAdapter.RefreshBindings(); Frame();
+        left.Trigger.Value = 0; Frame(); left.Trigger.Value = 1; Frame();
+        Require(Digital(Use).Down && !File.Exists(BindingProfiles.PersonalPath(profile)), "Reset restores upstream controls and removes the active override.");
+        Require(File.Exists(BindingProfiles.PersonalPath(profile) + ".bak"), "Reset keeps a recoverable backup.");
+        BindingProfiles.Configure(null);
+    }
+    static void InvalidSavedLayout()
+    {
+        Reset();
+        string root = Path.Combine(Path.GetTempPath(), "vhvr-bad-bindings-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root); BindingProfiles.Configure(root);
+        var profile = BindingProfiles.Find("oculus_touch");
+        string path = BindingProfiles.PersonalPath(profile);
+        File.WriteAllText(path, "{broken"); InputAdapter.LoadBindings();
+        profile = BindingProfiles.Find("oculus_touch");
+        Require(profile.LoadError != null && File.ReadAllText(path) == "{broken", "Corrupt saves fall back to defaults without destroying the user's file.");
+        Frame(); left.Trigger.Value = 1; Frame(); Require(Digital(Use).Down, "Fallback defaults remain usable.");
+        var wrong = Rebound(profile); wrong["controller_type"] = "knuckles";
+        bool rejected = false;
+        try { BindingProfiles.Save(profile, wrong); } catch (ArgumentException) { rejected = true; }
+        Require(rejected && File.ReadAllText(path) == "{broken", "A mismatched controller file cannot replace the current save.");
+        wrong = Rebound(profile); GameSet(wrong)["sources"][0]["parameters"] = new JObject { ["click_activate_threshold"] = .2f, ["click_deactivate_threshold"] = .9f };
+        rejected = false; try { BindingProfiles.Save(profile, wrong); } catch (ArgumentException) { rejected = true; }
+        Require(rejected, "Invalid threshold ordering is rejected before writing.");
+        wrong = Rebound(profile); GameSet(wrong)["sources"][0]["parameters"] = new JArray(.5f);
+        rejected = false; try { BindingProfiles.Save(profile, wrong); } catch (ArgumentException) { rejected = true; }
+        Require(rejected, "Malformed parameter arrays cannot replace a personal layout.");
+        wrong = Rebound(profile); GameSet(wrong)["sources"][0]["inputs"] = new JObject { ["click"] = 1 };
+        File.WriteAllText(path, wrong.ToString()); InputAdapter.LoadBindings();
+        Require(BindingProfiles.Find("oculus_touch").LoadError != null, "Malformed input components fall back to defaults instead of failing startup.");
+        BindingProfiles.Configure(null);
     }
 }

@@ -8,11 +8,14 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(AdapterSource)" Link="Production/InputAdapter.cs" />
+    <Compile Include="../../src/nikami-openxr/BindingProfiles.cs" Link="Production/BindingProfiles.cs" />
+    <Compile Include="../../src/nikami-openxr/BackendChoices.cs" Link="Production/BackendChoices.cs" />
     <Compile Include="../../../ValheimVRMod/VRCore/Backends/IVRBackend.cs" Link="Production/IVRBackend.cs" />
     <Reference Include="Valve.Newtonsoft.Json">
       <HintPath>$(ValheimDir)/Valheim_Data/Managed/Valve.Newtonsoft.Json.dll</HintPath>
     </Reference>
-    <None Include="../../../Unity/ValheimVR/Assets/StreamingAssets/SteamVR/bindings_oculus_touch.json" Link="fixtures/upstream/SteamVR/bindings_oculus_touch.json" CopyToOutputDirectory="PreserveNewest" />
+    <Reference Include="BepInEx"><HintPath>$(ValheimDir)/BepInEx/core/BepInEx.dll</HintPath></Reference>
+    <None Include="../../../Unity/ValheimVR/Assets/StreamingAssets/SteamVR/*.json" Link="fixtures/upstream/SteamVR/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Update="fixtures/priority/SteamVR/bindings_oculus_touch.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

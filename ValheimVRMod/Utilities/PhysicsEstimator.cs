@@ -92,6 +92,7 @@ namespace ValheimVRMod.Utilities
 
         void OnRenderObject()
         {
+            if (debugVelocityLine == null) return;
             debugVelocityLine.enabled = renderDebugVelocityLine;
             if (renderDebugVelocityLine)
             {
@@ -210,7 +211,10 @@ namespace ValheimVRMod.Utilities
             debugVelocityLine.useWorldSpace = true;
             debugVelocityLine.widthMultiplier = 0.006f;
             debugVelocityLine.positionCount = 2;
-            debugVelocityMaterial = new Material(debugVelocityLine.sharedMaterial);
+            var shader = Shader.Find("Sprites/Default");
+            if (debugVelocityLine.sharedMaterial != null) debugVelocityMaterial = new Material(debugVelocityLine.sharedMaterial);
+            else if (shader != null) debugVelocityMaterial = new Material(shader);
+            else { Destroy(debugVelocityLine.gameObject); debugVelocityLine = null; return; }
             debugVelocityMaterial.color = new Color(0.9f, 0.33f, 0.31f);
             debugVelocityLine.sharedMaterial = debugVelocityMaterial;
             debugVelocityLine.enabled = false;

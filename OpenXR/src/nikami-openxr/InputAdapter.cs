@@ -17,10 +17,15 @@ internal static class InputAdapter
 {
     sealed class Binding
     {
-        internal string Output, Set, Path, ControlName, Component, Mode;
+        internal string Output, Set, Path, ControlName, Component, Mode, ControlKey, SubMode, ForceControl, PressedControl;
         internal int Hand;
         internal float Press = .55f, Release = .45f;
+        internal float Deadzone, Overlap, ScrollScale = 1;
+        internal bool Force;
         internal bool Held;
+        internal int ScrollFrame = -1;
+        internal bool WasTouched;
+        internal Vector2 PreviousAxis, Scroll;
     }
     sealed class Chord
     {
@@ -61,6 +66,9 @@ internal static class InputAdapter
     static readonly XRDevice[] Devices = new XRDevice[4];
     static readonly Dictionary<XRDevice, Dictionary<string, InputControl>> Controls = new();
     static bool devicesResolved;
+    static bool profilesDirty, forceReload, bindingsLoaded, editing;
+    static readonly BindingProfile[] HandProfiles = new BindingProfile[4];
+    static bool primeStates;
     readonly struct SetState
     {
         internal readonly string Path;
@@ -102,6 +110,7 @@ internal static class InputAdapter
     internal static void Pump()
     {
         VRPoseDriver.RefreshOpenXRPose();
+        EnsureProfiles();
         if (dispatchedFrame == Time.frameCount) return;
         dispatchedFrame = Time.frameCount;
         // Edges belong to the input frame, even when gameplay does not read an
@@ -111,6 +120,7 @@ internal static class InputAdapter
             var key = BoundSamples[i];
             GetSample(key.Path, key.Source);
         }
+        primeStates = false;
         for (int i = Pulses.Count - 1; i >= 0; i--)
             if (Time.unscaledTime >= Pulses[i].At)
             { var pulse = Pulses[i]; Pulses.RemoveAt(i); SendPulse(pulse); }
@@ -135,6 +145,9 @@ internal static class InputAdapter
         DigitalListeners.Clear(); AxisListeners.Clear(); UpdateListeners.Clear(); Updated = null;
         Sets.Clear(); Pulses.Clear(); Samples.Clear(); BoundSamples.Clear(); dispatchedFrame = -1;
         ActivePriorities.Clear(); ControlPriorities.Clear(); Bindings.Clear(); Chords.Clear(); AllBindings.Clear();
+        bindingsLoaded = editing = primeStates = false;
+        Array.Clear(HandProfiles, 0, HandProfiles.Length);
+        BindingProfiles.Clear();
         DeviceChanged(null, default);
     }
     static void DeviceChanged(XRDevice device, InputDeviceChange change)
@@ -142,17 +155,62 @@ internal static class InputAdapter
         devicesResolved = false;
         Array.Clear(Devices, 0, Devices.Length);
         Controls.Clear();
+        profilesDirty = true;
         foreach (var sample in Samples.Values) sample.Frame = -1;
         PoseSamples.Clear();
     }
     internal static void LoadBindings()
     {
-        Bindings.Clear(); Chords.Clear(); AllBindings.Clear(); Samples.Clear(); BoundSamples.Clear();
-        var file = Path.Combine(Application.streamingAssetsPath, "SteamVR", "bindings_oculus_touch.json");
-        var root = JObject.Parse(File.ReadAllText(file));
+        BindingProfiles.Load(Path.Combine(Application.streamingAssetsPath, "SteamVR"));
+        bindingsLoaded = profilesDirty = forceReload = true;
+        EnsureProfiles();
+    }
+    internal static BindingProfile ProfileForHand(int hand) { EnsureProfiles(); return hand > 0 && hand < 3 ? HandProfiles[hand] : null; }
+    internal static void RefreshBindings() { profilesDirty = forceReload = true; }
+    internal static void EditBindings(bool open) { editing = open; RefreshBindings(); }
+    static void EnsureProfiles()
+    {
+        if (!bindingsLoaded || !profilesDirty) return;
+        profilesDirty = false;
+        bool changed = forceReload;
+        for (int hand = 1; hand <= 2; hand++)
+        {
+            var device = Device(hand);
+            var profile = device == null ? HandProfiles[hand] ?? BindingProfiles.Find("oculus_touch") :
+                BindingProfiles.Detect(device.layout,
+                    Stick(device) != null && !ReferenceEquals(Stick(device), Pad(device)), Pad(device) != null, Control<ButtonControl>(device, "primaryButton") != null);
+            changed |= profile != HandProfiles[hand];
+            HandProfiles[hand] = profile;
+        }
+        if (!changed) return;
+        forceReload = false;
+        Bindings.Clear(); Chords.Clear(); AllBindings.Clear(); BoundSamples.Clear();
+        var chordKeys = new HashSet<string>(StringComparer.Ordinal);
+        for (int hand = 1; hand <= 2; hand++)
+        {
+            var profile = HandProfiles[hand];
+            if (profile == null) continue;
+            Import(editing ? profile.Defaults : profile.Current, hand, chordKeys);
+        }
+        foreach (var path in Bindings.Keys.Union(Chords.Keys, StringComparer.OrdinalIgnoreCase))
+        for (int source = 0; source < Devices.Length; source++)
+        {
+            var key = (path, source);
+            if (!Samples.ContainsKey(key)) Samples.Add(key, new Sample());
+            BoundSamples.Add(key);
+        }
+        foreach (var sample in Samples.Values) sample.Frame = -1;
+        primeStates = true;
+        RebuildPriorities();
+        OpenXRPlugin.Log.LogInfo($"OpenXR bindings: left={HandProfiles[1]?.Name ?? "unrecognized"}, right={HandProfiles[2]?.Name ?? "unrecognized"}, actions={Bindings.Keys.Union(Chords.Keys).Count()}. Personal layouts are separate from upstream defaults.");
+    }
+    static void Import(JObject root, int hand, HashSet<string> chordKeys)
+    {
         foreach (var set in ((JObject)root["bindings"]).Properties())
         {
             foreach (var source in set.Value["sources"] ?? new JArray())
+            {
+            if (PathHand((string)source["path"]) != hand) continue;
             foreach (var input in ((JObject)source["inputs"]).Properties())
             {
                 var b = MakeBinding((string)input.Value["output"], (string)source["path"], input.Name,
@@ -160,8 +218,11 @@ internal static class InputAdapter
                 if (!Bindings.TryGetValue(b.Output, out var list)) Bindings[b.Output] = list = new();
                 list.Add(b);
             }
+            }
             foreach (JObject chordJson in set.Value["chords"] ?? new JArray())
             {
+                if (!((JArray)chordJson["inputs"]).Any(input => PathHand((string)input[0]) == hand) ||
+                    !chordKeys.Add(chordJson.ToString(Valve.Newtonsoft.Json.Formatting.None))) continue;
                 var chord = new Chord { Output = (string)chordJson["output"] };
                 chord.Inputs = ((JArray)chordJson["inputs"]).Select(input =>
                     MakeBinding(chord.Output, (string)input[0], (string)input[1], "button", null)).ToArray();
@@ -170,28 +231,27 @@ internal static class InputAdapter
                 list.Add(chord);
             }
         }
-        int sourceCount = Bindings.Values.Sum(list => list.Count);
-        int chordCount = Chords.Values.Sum(list => list.Count);
-        int actionCount = 0;
-        foreach (var path in Bindings.Keys.Union(Chords.Keys, StringComparer.OrdinalIgnoreCase))
-        {
-            actionCount++;
-            for (int source = 0; source < Devices.Length; source++)
-            {
-                var key = (path, source);
-                Samples.Add(key, new Sample());
-                BoundSamples.Add(key);
-            }
-        }
-        OpenXRPlugin.Log.LogInfo($"Imported {actionCount} upstream Oculus Touch actions into OpenXR ({sourceCount} source bindings, {chordCount} chords).");
     }
+    static int PathHand(string path) => path.Contains("/left/") ? 1 : path.Contains("/right/") ? 2 : 3;
     static Binding MakeBinding(string output, string path, string component, string mode, JToken parameters)
     {
         var binding = new Binding { Output = output, Set = output.Substring(0, output.IndexOf("/in/", StringComparison.OrdinalIgnoreCase)), Path = path, Component = component, Mode = mode };
         binding.ControlName = path.Substring(path.LastIndexOf('/') + 1);
-        binding.Hand = path.Contains("/left/") ? 1 : path.Contains("/right/") ? 2 : 3;
+        binding.ForceControl = binding.ControlName + "Force";
+        binding.PressedControl = binding.ControlName + "Pressed";
+        binding.Hand = PathHand(path);
         binding.Press = (float?)parameters?["click_activate_threshold"] ?? binding.Press;
-        binding.Release = (float?)parameters?["click_deactivate_threshold"] ?? binding.Release;
+        binding.Release = (float?)parameters?["click_deactivate_threshold"] ?? Math.Min(binding.Release, binding.Press);
+        binding.Force = (string)parameters?["force_input"] == "force";
+        binding.SubMode = (string)parameters?["sub_mode"];
+        binding.Deadzone = ((float?)parameters?["deadzone_pct"] ?? (mode == "dpad" ? 25 : 0)) / 100;
+        binding.Overlap = ((float?)parameters?["overlap_pct"] ?? 0) / 100;
+        binding.ScrollScale = (float?)parameters?["discrete_scroll_trackpad_globalscalefactor"] ?? 1;
+        string control = binding.ControlName switch {
+            "joystick" or "thumbstick" => "stick", "touchpad" or "trackpad" => "pad",
+            "a" or "x" => "primary", "b" or "y" => "secondary", "application_menu" => "menu", _ => binding.ControlName
+        };
+        binding.ControlKey = binding.Hand + ":" + control;
         AllBindings.Add(binding);
         return binding;
     }
@@ -204,13 +264,17 @@ internal static class InputAdapter
         if (exclusive && active) Sets.Clear();
         Sets.RemoveAll(set => set.Path.Equals(path, StringComparison.OrdinalIgnoreCase) && set.Hand == hand);
         if (active) Sets.Add(new SetState(path, hand, priority));
+        RebuildPriorities();
+    }
+    static void RebuildPriorities()
+    {
         ActivePriorities.Clear(); ControlPriorities.Clear();
         foreach (var set in Sets)
         foreach (var binding in AllBindings)
         {
             if (!binding.Set.Equals(set.Path, StringComparison.OrdinalIgnoreCase) || (set.Hand != 0 && set.Hand != binding.Hand)) continue;
             if (!ActivePriorities.TryGetValue(binding, out int current) || set.Priority > current) ActivePriorities[binding] = set.Priority;
-            if (!ControlPriorities.TryGetValue(binding.Path, out current) || set.Priority > current) ControlPriorities[binding.Path] = set.Priority;
+            if (!ControlPriorities.TryGetValue(binding.ControlKey, out current) || set.Priority > current) ControlPriorities[binding.ControlKey] = set.Priority;
         }
     }
     internal static bool IsActionSetActive(string path, VRInputSource source)
@@ -228,7 +292,7 @@ internal static class InputAdapter
         // arbitration the Craft trigger also fires Use, closing the inventory
         // before Unity's UI can receive its pointer-release event.
         return ActivePriorities.TryGetValue(binding, out int priority) &&
-            ControlPriorities.TryGetValue(binding.Path, out int highest) && priority == highest;
+            ControlPriorities.TryGetValue(binding.ControlKey, out int highest) && priority == highest;
     }
     internal static XRDevice Device(int hand)
     {
@@ -253,13 +317,82 @@ internal static class InputAdapter
         if (!controls.TryGetValue(name, out var control)) controls[name] = control = d.TryGetChildControl<InputControl>(name);
         return control as T;
     }
-    static Vector2 ReadAxis(Binding b)
+    static Vector2Control Stick(XRDevice device) => Control<Vector2Control>(device, "thumbstick") ?? Control<Vector2Control>(device, "joystick") ?? Control<Vector2Control>(device, "primary2DAxis");
+    static Vector2Control Pad(XRDevice device) => Control<Vector2Control>(device, "trackpad") ?? Control<Vector2Control>(device, "touchpad") ?? Control<Vector2Control>(device, "secondary2DAxis");
+    static bool IsStick(string name) => name == "joystick" || name == "thumbstick";
+    static bool IsPad(string name) => name == "trackpad" || name == "touchpad";
+    static AxisControl Analog(Binding b)
+    {
+        var device = Device(b.Hand);
+        if (b.Force)
+        {
+            var force = Control<AxisControl>(device, b.ForceControl);
+            if (force != null) return force;
+        }
+        return Control<AxisControl>(device, b.ControlName) ?? Control<AxisControl>(device, b.PressedControl);
+    }
+    static ButtonControl Button(Binding b, bool touch)
+    {
+        var device = Device(b.Hand);
+        string name = b.ControlName switch {
+            "a" or "x" => touch ? "primaryTouched" : "primaryButton",
+            "b" or "y" => touch ? "secondaryTouched" : "secondaryButton",
+            "joystick" or "thumbstick" => touch ? "thumbstickTouched" : "thumbstickClicked",
+            "trackpad" or "touchpad" => touch ? "trackpadTouched" : "trackpadClicked",
+            "trigger" => touch ? "triggerTouched" : "triggerPressed",
+            "grip" => touch ? "gripTouched" : "gripPressed",
+            "application_menu" or "menu" => "menu", "system" => touch ? "systemTouched" : "system", _ => b.ControlName
+        };
+        var control = Control<ButtonControl>(device, name);
+        if (control != null) return control;
+        string alias = name switch {
+            "thumbstickClicked" => "joystickClicked", "thumbstickTouched" => "joystickTouched",
+            "trackpadClicked" => "touchpadClicked", "trackpadTouched" => "touchpadTouched",
+            "primaryTouched" => "primaryTouch", "secondaryTouched" => "secondaryTouch",
+            "triggerTouched" => "triggerTouch", _ => name
+        };
+        control = Control<ButtonControl>(device, alias);
+        if (control != null) return control;
+        if (IsStick(b.ControlName)) return Control<ButtonControl>(device, touch ? "primary2DAxisTouch" : "primary2DAxisClick");
+        if (IsPad(b.ControlName)) return Control<ButtonControl>(device, touch ? "secondary2DAxisTouch" : "secondary2DAxisClick");
+        return null;
+    }
+    static bool Available(Binding b)
+    {
+        var device = Device(b.Hand);
+        if (device == null) return false;
+        if (b.Mode == "dpad" || b.Component == "position" || b.Component == "scroll")
+            return (IsStick(b.ControlName) ? Stick(device) : Pad(device)) != null;
+        if (b.Component != "touch" && (b.ControlName == "trigger" || b.ControlName == "grip" || b.Force)) return Analog(b) != null;
+        if (b.ControlName == "grip" && b.Component == "touch") return Analog(b) != null;
+        return Button(b, b.Component == "touch") != null || (IsPad(b.ControlName) && b.Component == "click" && Control<AxisControl>(device, "trackpadForce") != null);
+    }
+    static Vector2 RawAxis(Binding b)
     {
         var d = Device(b.Hand);
-        if (b.ControlName == "joystick") return (Control<Vector2Control>(d, "thumbstick") ?? Control<Vector2Control>(d, "primary2DAxis"))?.ReadValue() ?? Vector2.zero;
-        if (b.ControlName == "trigger") return new Vector2(Control<AxisControl>(d, "trigger")?.ReadValue() ?? 0, 0);
-        if (b.ControlName == "grip") return new Vector2(Control<AxisControl>(d, "grip")?.ReadValue() ?? 0, 0);
+        if (IsStick(b.ControlName)) return Stick(d)?.ReadValue() ?? Vector2.zero;
+        if (IsPad(b.ControlName)) return Pad(d)?.ReadValue() ?? Vector2.zero;
+        if (b.ControlName == "trigger" || b.ControlName == "grip") return new Vector2(Analog(b)?.ReadValue() ?? 0, 0);
         return Vector2.zero;
+    }
+    static Vector2 ReadAxis(Binding b)
+    {
+        var axis = RawAxis(b);
+        if (b.Component == "scroll")
+        {
+            if (b.ScrollFrame == Time.frameCount) return b.Scroll;
+            bool touched = Button(b, true)?.isPressed ?? axis.sqrMagnitude > 0;
+            b.Scroll = touched && b.WasTouched ? new Vector2((axis.x - b.PreviousAxis.x) * b.ScrollScale, (axis.y - b.PreviousAxis.y) * b.ScrollScale) : Vector2.zero;
+            b.ScrollFrame = Time.frameCount; b.PreviousAxis = axis; b.WasTouched = touched;
+            return b.Scroll;
+        }
+        if (b.Component == "position" && b.Deadzone > 0)
+        {
+            float magnitude = axis.magnitude;
+            float factor = magnitude > b.Deadzone ? Math.Min(1, (magnitude - b.Deadzone) / (1 - b.Deadzone)) / magnitude : 0;
+            return new Vector2(axis.x * factor, axis.y * factor);
+        }
+        return axis;
     }
     static bool ReadButton(Binding b)
     {
@@ -267,30 +400,31 @@ internal static class InputAdapter
         if (d == null) return b.Held = false;
         var path = b.ControlName;
         float value;
-        if (path == "joystick" && b.Mode == "dpad")
+        if ((IsStick(path) || IsPad(path)) && b.Mode == "dpad")
         {
-            var axis = ReadAxis(b);
-            value = b.Component switch { "north" => axis.y, "south" => -axis.y, "east" => axis.x, "west" => -axis.x, "center" => axis.magnitude < .25f ? 1 : 0, _ => 0 };
+            var axis = RawAxis(b);
+            bool gate = b.SubMode == "click" ? (Button(b, false)?.isPressed ?? (Control<AxisControl>(d, "trackpadForce")?.ReadValue() > b.Press)) :
+                b.SubMode == "touch" ? Button(b, true)?.isPressed ?? axis.sqrMagnitude > 0 : true;
+            float angle = (float)(Math.Atan2(axis.y, axis.x) * 180 / Math.PI);
+            float target = b.Component switch { "north" => 90, "south" => -90, "west" => 180, _ => 0 };
+            float separation = Math.Abs(angle - target);
+            if (separation > 180) separation = 360 - separation;
+            bool direction = b.Component == "center" ? axis.magnitude <= b.Deadzone :
+                axis.magnitude > b.Deadzone && separation <= 45 + Math.Min(.99f, b.Overlap) * 45;
+            value = gate && direction ? 1 : 0;
         }
-        else if ((path == "trigger" || path == "grip") && b.Component != "touch") value = ReadAxis(b).x;
+        else if ((path == "trigger" || path == "grip" || b.Force) && b.Component != "touch") value = Analog(b)?.ReadValue() ?? 0;
         else
         {
-            string name = path switch {
-                "a" or "x" => b.Component == "touch" ? "primaryTouched" : "primaryButton",
-                "b" or "y" => b.Component == "touch" ? "secondaryTouched" : "secondaryButton",
-                "joystick" => b.Component == "touch" ? "thumbstickTouched" : "thumbstickClicked",
-                "trigger" => "triggerTouched", "application_menu" or "menu" => "menu", _ => path
-            };
-            string alias = name switch {
-                "thumbstickClicked" => "primary2DAxisClick", "thumbstickTouched" => "primary2DAxisTouch",
-                "triggerTouched" => "triggerTouch", "primaryTouched" => "primaryTouch", "secondaryTouched" => "secondaryTouch", _ => name
-            };
-            value = (Control<ButtonControl>(d, name) ?? Control<ButtonControl>(d, alias))?.ReadValue() ?? 0;
+            value = Button(b, b.Component == "touch")?.ReadValue() ??
+                (path == "grip" && b.Component == "touch" ? ((Analog(b)?.ReadValue() ?? 0) > .02f ? 1 : 0) :
+                (IsPad(path) && b.Component == "click" ? Control<AxisControl>(d, "trackpadForce")?.ReadValue() ?? 0 : 0));
         }
-        return b.Held = value >= (b.Held ? b.Release : b.Press);
+        return b.Held = value > 0 && value >= (b.Held ? b.Release : b.Press);
     }
     static Sample GetSample(string path, int source)
     {
+        EnsureProfiles();
         var key = (path, source);
         if (!Samples.TryGetValue(key, out var sample)) Samples[key] = sample = new();
         if (sample.Frame == Time.frameCount) return sample;
@@ -301,7 +435,7 @@ internal static class InputAdapter
         foreach (var b in bindings)
         {
             if (source != 0 && source != b.Hand) continue;
-            if (Device(b.Hand) == null || !BindingActive(b)) continue;
+            if (!Available(b) || !BindingActive(b)) continue;
             active = true;
             var press = ReadButton(b);
             var value = ReadAxis(b);
@@ -317,7 +451,7 @@ internal static class InputAdapter
             foreach (var b in chord.Inputs)
             {
                 chordMatchesSource |= source == b.Hand;
-                if (Device(b.Hand) == null || !BindingActive(b))
+                if (!Available(b) || !BindingActive(b))
                 {
                     b.Held = false;
                     chordActive = chordHeld = false;
@@ -331,8 +465,8 @@ internal static class InputAdapter
                 held = true;
             }
         }
-        sample.Digital = new VRDigitalState { Active = active, Held = held, Down = held && !sample.Held, Up = !held && sample.Held };
-        sample.Delta = axis - sample.Axis;
+        sample.Digital = new VRDigitalState { Active = active, Held = held, Down = !primeStates && held && !sample.Held, Up = !primeStates && !held && sample.Held };
+        sample.Delta = primeStates ? Vector2.zero : axis - sample.Axis;
         sample.Held = held; sample.Axis = axis;
         return sample;
     }
@@ -340,11 +474,12 @@ internal static class InputAdapter
     internal static Vector2 ReadAxis(string path, VRInputSource source) => GetSample(path, Hand(source)).Axis;
     internal static bool IsBound(string path, VRInputSource source)
     {
+        EnsureProfiles();
         int hand = Hand(source);
         if (hand < 0) return false;
         if (Bindings.TryGetValue(path, out var bindings))
             foreach (var binding in bindings)
-                if ((hand == 0 || binding.Hand == hand) && Device(binding.Hand) != null && BindingActive(binding)) return true;
+                if ((hand == 0 || binding.Hand == hand) && Available(binding) && BindingActive(binding)) return true;
         if (Chords.TryGetValue(path, out var chords))
             foreach (var chord in chords)
             {
@@ -352,7 +487,7 @@ internal static class InputAdapter
                 foreach (var binding in chord.Inputs)
                 {
                     matchesSource |= binding.Hand == hand;
-                    available &= Device(binding.Hand) != null && BindingActive(binding);
+                    available &= Available(binding) && BindingActive(binding);
                 }
                 if (available && matchesSource) return true;
             }

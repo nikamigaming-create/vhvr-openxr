@@ -15,7 +15,7 @@ using ValheimVRMod.VRCore.Backends;
 
 namespace Nikami.OpenXR;
 
-[BepInPlugin("nikami.openxr", "VHVR Backends", "0.3.1")]
+[BepInPlugin("nikami.openxr", "VHVR Backends", "0.3.2")]
 [BepInDependency("org.bepinex.plugins.valheimvrmod")]
 [DefaultExecutionOrder(-30000)]
 public sealed class OpenXRPlugin : BaseUnityPlugin
@@ -72,13 +72,16 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
         try
         {
             harmony = new Harmony("nikami.openxr");
-            var configured = Config.Bind("Runtime", "Backend", "openxr", "VR backend: openxr or openvr (steamvr alias). Restart required; -vrbackend overrides this setting.");
+            var configured = Config.Bind("Runtime", "Backend", "openxr", new BepInEx.Configuration.ConfigDescription(
+                "VR backend: openxr or openvr. Restart required; -vrbackend overrides this setting.",
+                new BackendChoices()));
             var choice = VRBackendHost.Choose(configured.Value, arguments);
             VRGameplay.Configure(new VRGameplayOptions(
                 Config.Bind("Gameplay", "EnablePhysicalContact", false, "Opt in to added hand/weapon contact, impact feedback and native object forces. Applies to both backends. Restart required.").Value,
                 Config.Bind("Gameplay", "EnablePhysicalGrabbing", false, "Opt in to added physical loose-item grabbing and throwing. Applies to both backends. Restart required.").Value,
                 Config.Bind("Gameplay", "EnableCreatureGrabbing", false, "Opt in to added small-creature restraint and repelling. Applies to both backends. Restart required.").Value,
                 Config.Bind("Gameplay", "EnableFingerArticulation", false, "Opt in to added controller-driven finger articulation and contact curl. Applies to both backends. Restart required.").Value));
+            ValheimVRMod.VRCore.UI.ConfigSettings.SetBackendConfiguration(Config);
             if (VRGameplay.Options.Any) OpenXRPhysicalHands.Install(harmony);
             Log.LogInfo($"Optional gameplay: contact={VRGameplay.Options.PhysicalContact}, item-grab={VRGameplay.Options.PhysicalGrabbing}, creature-grab={VRGameplay.Options.CreatureGrabbing}, fingers={VRGameplay.Options.FingerArticulation}. Defaults are off; restart required.");
             if (choice == VRBackendKind.OpenVR)
@@ -94,6 +97,7 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
             selectedBackend = true;
             Application.runInBackground = true;
             RuntimeAdapter.Install(harmony);
+            BindingProfiles.Configure(Path.Combine(Paths.ConfigPath, "vhvr-openxr-bindings"));
             InputAdapter.Install();
             // Native OpenXR projection layers already contain the world-space GUI.
             Patch(harmony, "ValheimVRMod.Utilities.VHVRConfig:GetUseOverlayGui", nameof(NoOverlay));
@@ -390,6 +394,8 @@ public sealed class OpenXRPlugin : BaseUnityPlugin
         displaySubsystem = null;
         nativeDisplays.Clear();
         cameras = Array.Empty<Camera>();
+        Cleanup("binding editor", BindingEditor.Close);
+        Cleanup("backend configuration", () => ValheimVRMod.VRCore.UI.ConfigSettings.SetBackendConfiguration(null));
         Cleanup("physical hands", OpenXRPhysicalHands.Uninstall);
         Cleanup("input", InputAdapter.Shutdown);
         Cleanup("presentation", RuntimeAdapter.Shutdown);

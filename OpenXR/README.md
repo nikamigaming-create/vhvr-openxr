@@ -1,8 +1,8 @@
-# VHVR OpenXR / OpenVR v0.3.1 preview
+# VHVR OpenXR / OpenVR v0.3.2 preview
 
-[Download the public prerelease](https://github.com/nikamigaming-create/vhvr-openxr/releases/tag/openxr-v0.3.1). Download **VHVR-OpenXR-v0.3.1.zip** for installation; the separate source ZIP is for developers.
+[Download the public prerelease](https://github.com/nikamigaming-create/vhvr-openxr/releases/tag/openxr-v0.3.2). Download **VHVR-OpenXR-v0.3.2.zip** for installation; the separate source ZIP is for developers.
 
-This update includes the upstream minimap and HUD fixes from October 2, plus the input and resource cleanup after 0.3.0. See [TESTED.md](TESTED.md) for the checks on each build.
+This update adds controller profiles, an in-game OpenXR binding editor, and backend/physics settings in the VHVR menu. It also fixes the native camera tag so Valheim can update its lighting. The October 2 upstream minimap and HUD fixes remain included. See [TESTED.md](TESTED.md) for the checks.
 
 One package contains rebuilt VHVR gameplay, controller libraries, matching upstream bindings and asset bundles, and both runtime backends. Choose OpenXR or OpenVR at startup. Install BepInEx separately. The Nikami gameplay mod and launcher are excluded.
 
@@ -14,7 +14,7 @@ This is a community testing preview. Physical headset playability, comfort, hapt
 
 Upstream master is merged through [d78db84588c166431652c6fc50378e62b876079c](https://github.com/brandonmousseau/vhvr-mod/commit/d78db84588c166431652c6fc50378e62b876079c), checked October 3, 2026. This includes the latest official release, 0.10.5, and both newer commits since preview 0.3.0. They protect the small minimap from unexpected layouts and keep one failed HUD element from stopping the others. Earlier upstream fixes remain included. Each upstream feature has not been separately playtested.
 
-The gameplay DLL retains upstream's internal 0.10.5 version string. The companion and release are version 0.3.1. `openxr-manifest.json` identifies the exact upstream snapshot, both backends and SHA-256 hashes for all 118 runtime files. `SOURCE-PROVENANCE.json` records adapter, shared physics and fork correction sources.
+The gameplay DLL retains upstream's internal 0.10.5 version string. The companion and release are version 0.3.2. `openxr-manifest.json` identifies the exact upstream snapshot, both backends and SHA-256 hashes for all 118 runtime files. `SOURCE-PROVENANCE.json` records adapter, shared physics and fork correction sources.
 
 Unchanged VR dependencies come from the official [VHVR v0.10.5 archive](https://github.com/brandonmousseau/vhvr-mod/releases/tag/v0.10.5). Current gameplay/controller assemblies, actions and tracked bundles replace that archive's versions. A separate VHVR installation is unnecessary.
 
@@ -56,6 +56,18 @@ Use `openvr` for SteamVR. A `-vrbackend` launch option overrides the config; `st
 
 Both choices use exactly the same package files. Keep the companion installed in OpenVR mode too: it selects the runtime and supplies optional shared gameplay. The historical DLL name and plugin identifier remain for installation compatibility.
 
+You can also choose the backend in **VHVR settings > Runtime**. Launch options still override that choice. Save and restart to apply it.
+
+## Controller bindings
+
+OpenXR selects the packaged upstream layout for each detected controller. Touch, Vive, Index, WMR and Cosmos layouts are included. Unknown/simple controllers do not silently receive a Touch layout.
+
+Open **Controller bindings** from the game menu or VHVR's Controls tab. Choose the controller, action, hand and input, then **Save and close**. Changes apply immediately. **Cancel** discards the draft. **Reset defaults** restores the upstream layout when saved.
+
+Personal layouts go in `BepInEx/config/vhvr-openxr-bindings/<controller_type>.json`. Packaged defaults stay unchanged. Replaced/reset layouts retain a `.bak`; invalid JSON falls back to defaults. Default menu controls remain active while the editor is open so a bad mapping can be repaired.
+
+OpenVR uses its original SteamVR binding editor. OpenXR imports the upstream sources and button combinations, with grip thresholds, stick deadzones, trackpad directions and scroll deltas. SteamVR's advanced scroll/flick/hold tuning and SteamVR overlay keyboard are not fully reproduced.
+
 ## Added gameplay is opt-in
 
 The following four independent settings apply to either backend and default to **false**, including when upgrading from 0.2.0:
@@ -70,6 +82,8 @@ EnableFingerArticulation = false
 
 Restart after changing them. With all four off, no added physics/finger hooks are installed. Original VHVR combat collision, climbing, locomotion, building and VR menus remain available.
 
+These switches are also available in **VHVR settings > Gameplay**. Save and restart to apply them.
+
 ## Features
 
 - VHVR locomotion, combat, building and VR menus with shared runtime, input and rig contracts. See [ARCHITECTURE.md](ARCHITECTURE.md) for the separate native providers and upstream maintenance.
@@ -81,7 +95,7 @@ Restart after changing them. With all four off, no added physics/finger hooks ar
 
 When enabled, added physics covers hands, held weapons, gripped loose items and eligible creatures. Hands/weapons use swept native collision constraints. More than 8 cm or 20 degrees of tracking separation from a blocked pose permits escape; contact reconnects after withdrawal. Normal hand/weapon contact has no timed expiry. Held objects release on grip release, tracking/focus loss, death, excessive separation or lost ownership. Normal player movement collision is retained.
 
-OpenXR also supplies controller input updates before game/UI sampling, stereo occlusion and FXAA corrections, and guarded display-session recovery. OpenVR retains its native mirror, overlay, binding editor and tracker integration. Runtime-specific features do not have identical support: OpenXR uses packaged controller bindings and world-space GUI; SteamVR overlay keyboard/editor and full-body tracker behavior are not implemented as native OpenXR features.
+OpenXR also supplies controller input updates before game/UI sampling, stereo occlusion and FXAA corrections, and guarded display-session recovery. OpenVR retains its native mirror, overlay, binding editor and tracker integration. OpenXR uses its own in-game editor and world-space GUI; SteamVR overlay keyboard and full-body tracker behavior are not implemented as native OpenXR features.
 
 ## Grabbing controls
 
@@ -91,7 +105,7 @@ Eligible small ground creatures include necks, boars and graylings, subject to s
 
 ## Validation and package contents
 
-The 0.3.1 build passes managed input, backend and lifecycle checks. The earlier native OpenXR simulator and OpenVR startup results apply to their recorded builds. Fresh native acceptance and a human headset playtest are pending for 0.3.1. [TESTED.md](TESTED.md) / `TESTED.txt` records the evidence.
+The 0.3.2 build passes 275 managed checks and the packaging guards. Native OpenXR simulator checks cover the daytime camera, controller editor and optional physics/settings. Human headset playability, comfort and haptics remain unverified. [TESTED.md](TESTED.md) / `TESTED.txt` records the evidence.
 
 OpenXR rendering uses multipass/deferred mode. Game binaries/data, BepInEx loader files, worlds, experimental single-pass caches, simulator/QA/filming plugins and Nikami gameplay/launcher files are excluded.
 
@@ -99,7 +113,7 @@ OpenXR rendering uses multipass/deferred mode. Game binaries/data, BepInEx loade
 
 ## Source and build
 
-The [repository](https://github.com/nikamigaming-create/vhvr-openxr) and `VHVR-OpenXR-v0.3.1-source.zip` contain corresponding fork sources, build scripts, backend contract tests, tracked VR assets and notices. See `LICENSE-GPL-3.0.txt`, `openxr-licenses` and `third-party-notices`.
+The [repository](https://github.com/nikamigaming-create/vhvr-openxr) and `VHVR-OpenXR-v0.3.2-source.zip` contain corresponding fork sources, build scripts, backend contract tests, tracked VR assets and notices. See `LICENSE-GPL-3.0.txt`, `openxr-licenses` and `third-party-notices`.
 
 Install .NET 8 SDK. Your owned game directory needs BepInEx and the VR libraries from this package or official VHVR v0.10.5 as build references. Run from this checkout:
 
