@@ -1,5 +1,6 @@
 using ValheimVRMod.VRCore.Backends;
 using UnityEngine;
+using ValheimVRMod.Patches;
 using ValheimVRMod.Utilities;
 using ValheimVRMod.VRCore;
 
@@ -150,6 +151,11 @@ namespace ValheimVRMod.Scripts
                     localPlayer.Jump();
                 }
             }
+        }
+
+        public static bool IsDodgingOrAboutTo()
+        {
+            return GesturedDodgeRoll.IsDodgingOrAboutTo();
         }
 
         private static bool IsInAir(Player player)
@@ -910,6 +916,8 @@ namespace ValheimVRMod.Scripts
         {
             // Head must move down at least this fast (m/s) to count as a fast crouch.
             private const float MAX_HEAD_VERTICAL_VELOCITY = -1.5f;
+            // Looser, to tell that a dodge may be coming right before it is recognized as one.
+            private const float MAX_HEAD_VERTICAL_VELOCITY_BEFORE_DODGE = -1f;
             // Each hand's horizontal speed (m/s) required to count as pushing.
             private const float MIN_HAND_PUSH_SPEED = 2f;
             // Min cosine between the two hands' horizontal velocities to count as the same direction.
@@ -918,6 +926,32 @@ namespace ValheimVRMod.Scripts
             private const float MIN_HAND_AHEAD_OF_HEAD = 0.25f;
 
             private Camera vrCam;
+
+            // Whether the local player is dodging or in the fast crouch that leads into a gestured dodge, before it
+            // is recognized as one. The back reach locations of gestured equipping are relative to the head, so the
+            // crouch sweeps them over the hands, and the push and the roll after it swing the hands through them. A
+            // grip pressed or released in the meantime, e. g. on a weapon wielded with two hands, would holster or
+            // draw something.
+            public static bool IsDodgingOrAboutTo()
+            {
+                Player player = Player.m_localPlayer;
+                if (player == null)
+                {
+                    return false;
+                }
+                if (player.InDodge() || player.m_queuedDodgeTimer > 0 || UpdateDodgeVr.currdodgetimer > 0 ||
+                    (VRPlayer.vrPlayerInstance != null && VRPlayer.vrPlayerInstance.wasDodging))
+                {
+                    return true;
+                }
+
+                Vector3? up = upDirection;
+                return VHVRConfig.IsBasicGesturedLocomotionEnabled() &&
+                    up != null &&
+                    VRPlayer.headPhysicsEstimator != null &&
+                    Vector3.Dot(VRPlayer.headPhysicsEstimator.GetVelocity(), up.Value) <
+                        MAX_HEAD_VERTICAL_VELOCITY_BEFORE_DODGE;
+            }
 
             public override Vector3 GetTargetVelocityFromGestures(Player player, float deltaTime)
             {
